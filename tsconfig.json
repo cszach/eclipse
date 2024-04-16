@@ -1,0 +1,10 @@
+{
+  "extends": "./node_modules/gts/tsconfig-google.json",
+  "compilerOptions": {
+    "module": "ES2022",
+    "lib": ["dom", "ES2022"],
+    "rootDir": ".",
+    "types": ["@webgpu/types"]
+  },
+  "include": ["src/**/*.ts", "test/**/*.ts", "examples/**/*.ts"]
+}
