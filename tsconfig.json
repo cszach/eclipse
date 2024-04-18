@@ -5,7 +5,8 @@
     "moduleResolution": "NodeNext",
     "lib": ["dom", "ES2022"],
     "rootDir": ".",
-    "types": ["@webgpu/types"]
+    "types": ["@webgpu/types"],
+    "noImplicitOverride": true,
   },
   "include": ["src/**/*.ts", "test/**/*.ts", "examples/**/*.ts"]
 }
