@@ -86,20 +86,13 @@ class Rasterizer implements Renderer {
 
     // Create the camera uniform buffer (model-view-projection matrix)
 
-    const projectionMatrix = mat4.perspective(
-      camera.verticalFovRadians,
-      camera.aspectRatio,
-      camera.near,
-      camera.far
-    );
-
     const viewMatrix = mat4.lookAt(
       camera.localPosition,
       vec3.create(0, 0, 0),
       UP
     );
 
-    const mvpMatrix = mat4.multiply(projectionMatrix, viewMatrix);
+    const mvpMatrix = mat4.multiply(camera.projectionMatrix, viewMatrix);
     this.device.queue.writeBuffer(this.uniformBuffer, 0, mvpMatrix);
 
     // Render pass
