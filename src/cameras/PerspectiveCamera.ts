@@ -10,7 +10,6 @@ class PerspectiveCamera extends Group implements Camera {
   private _aspectRatio: number;
   private _near: number;
   private _far: number;
-  static readonly UP: vec3 = vec3.create(0, 0, 0);
 
   constructor(
     verticalFovRadians?: number,

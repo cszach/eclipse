@@ -1,7 +1,7 @@
 import {Scene, Mesh} from '../primitives/exports.js';
 import {PerspectiveCamera} from '../cameras/PerspectiveCamera.js';
 import {Renderer} from './Renderer.js';
-import {vec3, mat4} from 'wgpu-matrix';
+import {vec3, mat4, quat} from 'wgpu-matrix';
 import shaderCode from '../shaders/rasterizer.wgsl';
 import {UP} from '../constants.js';
 import {vertexBufferLayout} from './constants.js';
@@ -132,7 +132,7 @@ class Rasterizer implements Renderer {
     let indexDataOffset = 0;
     let numVerticesProcessed = 0;
 
-    scene.traverse((group, globalPosition) => {
+    scene.traverse((group, globalPosition, globalRotation, globalScale) => {
       if (!(group instanceof Mesh)) {
         return;
       }
@@ -145,10 +145,20 @@ class Rasterizer implements Renderer {
         indexData[indexDataOffset++] = indices[2] + numVerticesProcessed;
       });
 
+      const transformationMatrix = mat4.translation(globalPosition);
+      const {angle, axis} = quat.toAxisAngle(globalRotation);
+      mat4.rotate(transformationMatrix, axis, angle, transformationMatrix);
+      mat4.scale(transformationMatrix, globalScale, transformationMatrix);
+
       mesh.geometry.forEachVertex((_index, position, normal, uv) => {
-        vertexData[vertexDataOffset++] = globalPosition[0] + position[0];
-        vertexData[vertexDataOffset++] = globalPosition[1] + position[1];
-        vertexData[vertexDataOffset++] = globalPosition[2] + position[2];
+        const transformedPosition = vec3.transformMat4(
+          position,
+          transformationMatrix
+        );
+
+        vertexData[vertexDataOffset++] = transformedPosition[0];
+        vertexData[vertexDataOffset++] = transformedPosition[1];
+        vertexData[vertexDataOffset++] = transformedPosition[2];
         vertexData[vertexDataOffset++] = normal[0];
         vertexData[vertexDataOffset++] = normal[1];
         vertexData[vertexDataOffset++] = normal[2];
