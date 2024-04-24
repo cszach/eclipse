@@ -5,6 +5,7 @@ import {vec3, mat4, quat} from 'wgpu-matrix';
 import shaderCode from '../shaders/rasterizer.wgsl';
 import {UP} from '../constants.js';
 import {vertexBufferLayout} from './constants.js';
+import {Light} from '../lights/Light.js';
 
 class Rasterizer implements Renderer {
   readonly canvas: HTMLCanvasElement;
@@ -21,6 +22,7 @@ class Rasterizer implements Renderer {
   private vertexBuffer?: GPUBuffer;
   private indexBuffer?: GPUBuffer;
   private materialBuffer?: GPUBuffer;
+  private lightBuffer?: GPUBuffer;
 
   constructor(canvas?: HTMLCanvasElement) {
     this.canvas = canvas ?? document.createElement('canvas');
@@ -60,7 +62,8 @@ class Rasterizer implements Renderer {
       scene.updateStats();
     }
 
-    const {vertexData, indexData, materialData} = this.getSceneData(scene);
+    const {vertexData, indexData, materialData, lightData} =
+      this.getSceneData(scene);
 
     // Write vertex and index data to GPU buffer
 
@@ -95,12 +98,22 @@ class Rasterizer implements Renderer {
     const mvpMatrix = mat4.multiply(camera.projectionMatrix, viewMatrix);
     this.device.queue.writeBuffer(this.uniformBuffer, 0, mvpMatrix);
 
+    // Create the material buffer
+
     this.materialBuffer = this.device.createBuffer({
       label: 'Rasterizer material buffer',
       size: materialData.byteLength,
       usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
     });
     this.device.queue.writeBuffer(this.materialBuffer, 0, materialData);
+
+    // Create the light buffer
+    this.lightBuffer = this.device.createBuffer({
+      label: 'Rasterizer light buffer',
+      size: lightData.byteLength,
+      usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
+    });
+    this.device.queue.writeBuffer(this.lightBuffer, 0, lightData);
 
     this.bindGroup = this.device.createBindGroup({
       label: 'Rasterizer bind group',
@@ -113,6 +126,10 @@ class Rasterizer implements Renderer {
         {
           binding: 1,
           resource: {buffer: this.materialBuffer},
+        },
+        {
+          binding: 2,
+          resource: {buffer: this.lightBuffer},
         },
       ],
     });
@@ -146,68 +163,86 @@ class Rasterizer implements Renderer {
     vertexData: Float32Array;
     indexData: Float32Array;
     materialData: Float32Array;
+    lightData: Float32Array;
   } {
     const numComponents = 9; // Position X, Y, Z, normal X, Y, Z, U & V, matIdx
     const vertexData = new Float32Array(scene.stats.vertices * numComponents);
     const indexData = new Float32Array(scene.stats.triangles * 3);
     const materialData = new Float32Array(scene.stats.meshes * 3);
+    const lightData = new Float32Array(scene.stats.lights * 8);
 
     let vertexDataOffset = 0;
     let indexDataOffset = 0;
     let materialDataOffset = 0;
     let materialIndex = 0;
+    let lightDataOffset = 0;
     let numVerticesProcessed = 0;
 
     scene.traverse((group, globalPosition, globalRotation, globalScale) => {
-      if (!(group instanceof Mesh)) {
-        return;
-      }
+      if (group instanceof Mesh) {
+        const mesh = group;
 
-      const mesh = group;
+        materialData[materialDataOffset++] = mesh.material.color[0];
+        materialData[materialDataOffset++] = mesh.material.color[1];
+        materialData[materialDataOffset++] = mesh.material.color[2];
 
-      materialData[materialDataOffset++] = mesh.material.color[0];
-      materialData[materialDataOffset++] = mesh.material.color[1];
-      materialData[materialDataOffset++] = mesh.material.color[2];
+        mesh.geometry.forEachTriangle((_index, indices) => {
+          indexData[indexDataOffset++] = indices[0] + numVerticesProcessed;
+          indexData[indexDataOffset++] = indices[1] + numVerticesProcessed;
+          indexData[indexDataOffset++] = indices[2] + numVerticesProcessed;
+        });
 
-      mesh.geometry.forEachTriangle((_index, indices) => {
-        indexData[indexDataOffset++] = indices[0] + numVerticesProcessed;
-        indexData[indexDataOffset++] = indices[1] + numVerticesProcessed;
-        indexData[indexDataOffset++] = indices[2] + numVerticesProcessed;
-      });
+        const worldMatrix = mat4.translation(globalPosition);
+        const {angle, axis} = quat.toAxisAngle(globalRotation);
+        mat4.rotate(worldMatrix, axis, angle, worldMatrix);
+        mat4.scale(worldMatrix, globalScale, worldMatrix);
 
-      const worldMatrix = mat4.translation(globalPosition);
-      const {angle, axis} = quat.toAxisAngle(globalRotation);
-      mat4.rotate(worldMatrix, axis, angle, worldMatrix);
-      mat4.scale(worldMatrix, globalScale, worldMatrix);
-
-      const worldMatrixInverseTranspose = mat4.invert(worldMatrix);
-      mat4.transpose(worldMatrixInverseTranspose, worldMatrixInverseTranspose);
-
-      mesh.geometry.forEachVertex((_index, position, normal, uv) => {
-        const transformedPosition = vec3.transformMat4(position, worldMatrix);
-
-        const transformedNormal = vec3.transformMat4(
-          normal,
+        const worldMatrixInverseTranspose = mat4.invert(worldMatrix);
+        mat4.transpose(
+          worldMatrixInverseTranspose,
           worldMatrixInverseTranspose
         );
 
-        vertexData[vertexDataOffset++] = transformedPosition[0];
-        vertexData[vertexDataOffset++] = transformedPosition[1];
-        vertexData[vertexDataOffset++] = transformedPosition[2];
-        vertexData[vertexDataOffset++] = transformedNormal[0];
-        vertexData[vertexDataOffset++] = transformedNormal[1];
-        vertexData[vertexDataOffset++] = transformedNormal[2];
-        vertexData[vertexDataOffset++] = uv[0];
-        vertexData[vertexDataOffset++] = uv[1];
-        vertexData[vertexDataOffset++] = materialIndex;
+        mesh.geometry.forEachVertex((_index, position, normal, uv) => {
+          const transformedPosition = vec3.transformMat4(position, worldMatrix);
 
-        numVerticesProcessed++;
-      });
+          const transformedNormal = vec3.transformMat4(
+            normal,
+            worldMatrixInverseTranspose
+          );
 
-      materialIndex++;
+          vertexData[vertexDataOffset++] = transformedPosition[0];
+          vertexData[vertexDataOffset++] = transformedPosition[1];
+          vertexData[vertexDataOffset++] = transformedPosition[2];
+          vertexData[vertexDataOffset++] = transformedNormal[0];
+          vertexData[vertexDataOffset++] = transformedNormal[1];
+          vertexData[vertexDataOffset++] = transformedNormal[2];
+          vertexData[vertexDataOffset++] = uv[0];
+          vertexData[vertexDataOffset++] = uv[1];
+          vertexData[vertexDataOffset++] = materialIndex;
+
+          numVerticesProcessed++;
+        });
+
+        materialIndex++;
+      }
+
+      // Light
+      if ('color' in group && 'intensity' in group) {
+        const light = group as Light;
+
+        lightData[lightDataOffset++] = light.localPosition[0]; // 0
+        lightData[lightDataOffset++] = light.localPosition[1];
+        lightData[lightDataOffset++] = light.localPosition[2];
+        lightData[lightDataOffset++] = light.intensity;
+        lightData[lightDataOffset++] = light.color[0]; // 16
+        lightData[lightDataOffset++] = light.color[1];
+        lightData[lightDataOffset++] = light.color[2];
+        lightData[lightDataOffset++] = 0; // TODO: type
+      }
     });
 
-    return {vertexData, indexData, materialData};
+    return {vertexData, indexData, materialData, lightData};
   }
 
   private setCanvasFormatAndContext() {
@@ -240,6 +275,11 @@ class Rasterizer implements Renderer {
         },
         {
           binding: 1,
+          visibility: GPUShaderStage.FRAGMENT,
+          buffer: {type: 'read-only-storage'},
+        },
+        {
+          binding: 2,
           visibility: GPUShaderStage.FRAGMENT,
           buffer: {type: 'read-only-storage'},
         },
