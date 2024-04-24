@@ -10,13 +10,17 @@ struct VertexInput {
 
 struct VertexOutput {
   @builtin(position) position: vec4f,
-  @interpolate(flat) @location(1) materialIndex: f32
+  @location(1) normal: vec3f,
+  @location(2) uv: vec2f,
+  @interpolate(flat) @location(3) materialIndex: f32
 }
 
 @vertex
 fn vertexMain(input: VertexInput) -> VertexOutput {
   var output: VertexOutput;
   output.position = modelViewProjectionMatrix * vec4f(input.position, 1);
+  output.normal = input.normal;
+  output.uv = input.uv;
   output.materialIndex = input.materialIndex;
 
   return output;
@@ -24,11 +28,11 @@ fn vertexMain(input: VertexInput) -> VertexOutput {
 
 @fragment
 fn fragmentMain(input: VertexOutput) -> @location(0) vec4f {
-  let material = vec3f(
+  let color = vec3f(
     materials[u32(input.materialIndex) * 3 + 0],
     materials[u32(input.materialIndex) * 3 + 1],
     materials[u32(input.materialIndex) * 3 + 2],
   );
 
-  return vec4f(material, 1);
+  return vec4f(color, 1);
 }
