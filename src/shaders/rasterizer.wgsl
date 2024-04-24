@@ -47,8 +47,19 @@ fn fragmentMain(input: VertexOutput) -> @location(0) vec4f {
   for (var i = 0u; i < arrayLength(&lights); i++) {
     let light = lights[i];
 
-    color += baseColor * light.color * light.intensity;
+    switch u32(light.typeId) {
+      case 0: {
+        color += ambient(baseColor, light.color, light.intensity);
+      }
+      default: {
+        // noop
+      }
+    }
   }
 
   return vec4f(color, 1);
+}
+
+fn ambient(baseColor: vec3f, lightColor: vec3f, lightIntensity: f32) -> vec3f {
+  return baseColor * lightColor * lightIntensity;
 }

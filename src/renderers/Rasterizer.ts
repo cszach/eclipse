@@ -238,7 +238,7 @@ class Rasterizer implements Renderer {
         lightData[lightDataOffset++] = light.color[0]; // 16
         lightData[lightDataOffset++] = light.color[1];
         lightData[lightDataOffset++] = light.color[2];
-        lightData[lightDataOffset++] = 0; // TODO: type
+        lightData[lightDataOffset++] = light.type; // TODO: type
       }
     });
 
