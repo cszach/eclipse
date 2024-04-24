@@ -175,23 +175,28 @@ class Rasterizer implements Renderer {
         indexData[indexDataOffset++] = indices[2] + numVerticesProcessed;
       });
 
-      const transformationMatrix = mat4.translation(globalPosition);
+      const worldMatrix = mat4.translation(globalPosition);
       const {angle, axis} = quat.toAxisAngle(globalRotation);
-      mat4.rotate(transformationMatrix, axis, angle, transformationMatrix);
-      mat4.scale(transformationMatrix, globalScale, transformationMatrix);
+      mat4.rotate(worldMatrix, axis, angle, worldMatrix);
+      mat4.scale(worldMatrix, globalScale, worldMatrix);
+
+      const worldMatrixInverseTranspose = mat4.invert(worldMatrix);
+      mat4.transpose(worldMatrixInverseTranspose, worldMatrixInverseTranspose);
 
       mesh.geometry.forEachVertex((_index, position, normal, uv) => {
-        const transformedPosition = vec3.transformMat4(
-          position,
-          transformationMatrix
+        const transformedPosition = vec3.transformMat4(position, worldMatrix);
+
+        const transformedNormal = vec3.transformMat4(
+          normal,
+          worldMatrixInverseTranspose
         );
 
         vertexData[vertexDataOffset++] = transformedPosition[0];
         vertexData[vertexDataOffset++] = transformedPosition[1];
         vertexData[vertexDataOffset++] = transformedPosition[2];
-        vertexData[vertexDataOffset++] = normal[0];
-        vertexData[vertexDataOffset++] = normal[1];
-        vertexData[vertexDataOffset++] = normal[2];
+        vertexData[vertexDataOffset++] = transformedNormal[0];
+        vertexData[vertexDataOffset++] = transformedNormal[1];
+        vertexData[vertexDataOffset++] = transformedNormal[2];
         vertexData[vertexDataOffset++] = uv[0];
         vertexData[vertexDataOffset++] = uv[1];
         vertexData[vertexDataOffset++] = materialIndex;
