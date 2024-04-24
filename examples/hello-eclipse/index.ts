@@ -26,11 +26,28 @@ renderer.init().then(() => {
   const scene = new Scene();
   const camera = new PerspectiveCamera(
     Math.PI / 4,
-    canvas.scrollWidth / canvas.scrollHeight
+    canvas.width / canvas.height
   );
   vec3.set(0, 0, 4, camera.localPosition);
 
   scene.add(cube1, cube2, cube3);
+
+  // Canvas resize
+
+  const resizeObserver = new ResizeObserver(entries => {
+    entries.forEach(entry => {
+      const canvas = entry.target as HTMLCanvasElement;
+      const width = entry.contentBoxSize[0].inlineSize;
+      const height = entry.contentBoxSize[0].blockSize;
+
+      canvas.width = width;
+      canvas.height = height;
+
+      camera.aspectRatio = canvas.width / canvas.height;
+    });
+  });
+
+  resizeObserver.observe(canvas);
 
   let i = 0;
 
