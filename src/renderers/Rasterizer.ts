@@ -20,6 +20,7 @@ class Rasterizer implements Renderer {
   private uniformBuffer?: GPUBuffer;
   private vertexBuffer?: GPUBuffer;
   private indexBuffer?: GPUBuffer;
+  private materialBuffer?: GPUBuffer;
 
   constructor(canvas?: HTMLCanvasElement) {
     this.canvas = canvas ?? document.createElement('canvas');
@@ -50,8 +51,7 @@ class Rasterizer implements Renderer {
       !this.device ||
       !this.uniformBuffer ||
       !this.context ||
-      !this.pipeline ||
-      !this.bindGroup
+      !this.pipeline
     ) {
       throw Error('Renderer has not been initiated. Call .init() first.');
     }
@@ -60,7 +60,7 @@ class Rasterizer implements Renderer {
       scene.updateStats();
     }
 
-    const {vertexData, indexData} = this.getVertexAndIndexData(scene);
+    const {vertexData, indexData, materialData} = this.getSceneData(scene);
 
     // Write vertex and index data to GPU buffer
 
@@ -95,6 +95,28 @@ class Rasterizer implements Renderer {
     const mvpMatrix = mat4.multiply(camera.projectionMatrix, viewMatrix);
     this.device.queue.writeBuffer(this.uniformBuffer, 0, mvpMatrix);
 
+    this.materialBuffer = this.device.createBuffer({
+      label: 'Rasterizer material buffer',
+      size: materialData.byteLength,
+      usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
+    });
+    this.device.queue.writeBuffer(this.materialBuffer, 0, materialData);
+
+    this.bindGroup = this.device.createBindGroup({
+      label: 'Rasterizer bind group',
+      layout: this.bindGroupLayout,
+      entries: [
+        {
+          binding: 0,
+          resource: {buffer: this.uniformBuffer},
+        },
+        {
+          binding: 1,
+          resource: {buffer: this.materialBuffer},
+        },
+      ],
+    });
+
     // Render pass
 
     const encoder = this.device.createCommandEncoder();
@@ -120,16 +142,20 @@ class Rasterizer implements Renderer {
     this.device.queue.submit([encoder.finish()]);
   }
 
-  private getVertexAndIndexData(scene: Scene): {
+  private getSceneData(scene: Scene): {
     vertexData: Float32Array;
     indexData: Float32Array;
+    materialData: Float32Array;
   } {
     const numComponents = 9; // Position X, Y, Z, normal X, Y, Z, U & V, matIdx
     const vertexData = new Float32Array(scene.stats.vertices * numComponents);
     const indexData = new Float32Array(scene.stats.triangles * 3);
+    const materialData = new Float32Array(scene.stats.meshes * 3);
 
     let vertexDataOffset = 0;
     let indexDataOffset = 0;
+    let materialDataOffset = 0;
+    let materialIndex = 0;
     let numVerticesProcessed = 0;
 
     scene.traverse((group, globalPosition, globalRotation, globalScale) => {
@@ -138,6 +164,10 @@ class Rasterizer implements Renderer {
       }
 
       const mesh = group;
+
+      materialData[materialDataOffset++] = mesh.material.color[0];
+      materialData[materialDataOffset++] = mesh.material.color[1];
+      materialData[materialDataOffset++] = mesh.material.color[2];
 
       mesh.geometry.forEachTriangle((_index, indices) => {
         indexData[indexDataOffset++] = indices[0] + numVerticesProcessed;
@@ -164,13 +194,15 @@ class Rasterizer implements Renderer {
         vertexData[vertexDataOffset++] = normal[2];
         vertexData[vertexDataOffset++] = uv[0];
         vertexData[vertexDataOffset++] = uv[1];
-        vertexData[vertexDataOffset++] = 0; // TODO: material index
+        vertexData[vertexDataOffset++] = materialIndex;
 
         numVerticesProcessed++;
       });
+
+      materialIndex++;
     });
 
-    return {vertexData, indexData};
+    return {vertexData, indexData, materialData};
   }
 
   private setCanvasFormatAndContext() {
@@ -201,6 +233,11 @@ class Rasterizer implements Renderer {
           visibility: GPUShaderStage.VERTEX,
           buffer: {type: 'uniform'},
         },
+        {
+          binding: 1,
+          visibility: GPUShaderStage.FRAGMENT,
+          buffer: {type: 'read-only-storage'},
+        },
       ],
     });
 
@@ -208,17 +245,6 @@ class Rasterizer implements Renderer {
       label: 'Rasterizer uniform buffer',
       size: /*elements=*/ 16 * /*float32 size=*/ 4, // MVP matrix
       usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
-    });
-
-    this.bindGroup = this.device.createBindGroup({
-      label: 'Rasterizer bind group',
-      layout: this.bindGroupLayout,
-      entries: [
-        {
-          binding: 0,
-          resource: {buffer: this.uniformBuffer},
-        },
-      ],
     });
   }
 
