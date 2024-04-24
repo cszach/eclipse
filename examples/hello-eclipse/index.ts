@@ -1,4 +1,10 @@
-import {Box, Mesh, PerspectiveCamera, Scene} from '../../src/index.js';
+import {
+  Box,
+  Mesh,
+  PerspectiveCamera,
+  Scene,
+  SolidColor,
+} from '../../src/index.js';
 import {Rasterizer} from '../../src/renderers/Rasterizer.js';
 import {quat, vec3} from 'wgpu-matrix';
 
@@ -12,22 +18,28 @@ const renderer = new Rasterizer(canvas);
 
 renderer.init().then(() => {
   const box = new Box(1, 1, 1);
-  const mesh = new Mesh(box);
+  const cube1 = new Mesh(box, new SolidColor([1, 0, 0]));
+  const cube2 = new Mesh(box, new SolidColor([0, 1, 0]));
+  vec3.set(2, 0, 0, cube2.localPosition);
+  const cube3 = new Mesh(box, new SolidColor([0, 0, 1]));
+  vec3.set(-2, 0, 0, cube3.localPosition);
   const scene = new Scene();
   const camera = new PerspectiveCamera(
     Math.PI / 4,
     canvas.scrollWidth / canvas.scrollHeight
   );
-  vec3.set(1, 1, 2, camera.localPosition);
+  vec3.set(0, 0, 4, camera.localPosition);
 
-  scene.add(mesh);
+  scene.add(cube1, cube2, cube3);
 
   let i = 0;
 
   function frame() {
     renderer.render(scene, camera);
 
-    quat.fromEuler(i++ / 100, 0, i / 100, 'xyz', mesh.localQuaternion);
+    quat.fromEuler(i++ / 300, 0, i / 300, 'xyz', cube1.localQuaternion);
+    quat.fromEuler(i++ / 300, 0, i / 300, 'xyz', cube2.localQuaternion);
+    quat.fromEuler(i++ / 300, 0, i / 300, 'xyz', cube3.localQuaternion);
 
     window.requestAnimationFrame(frame);
   }
