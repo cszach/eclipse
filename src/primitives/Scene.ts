@@ -4,6 +4,7 @@ import {Mesh} from './Mesh.js';
 class Scene extends Group {
   stats: {
     outdated: boolean;
+    meshes: number;
     vertices: number;
     triangles: number;
   };
@@ -13,6 +14,7 @@ class Scene extends Group {
 
     this.stats = {
       outdated: false,
+      meshes: 0,
       vertices: 0,
       triangles: 0,
     };
@@ -24,19 +26,19 @@ class Scene extends Group {
   }
 
   updateStats(): void {
-    let verticesCount = 0;
-    let trianglesCount = 0;
+    let meshes = 0;
+    let vertices = 0;
+    let triangles = 0;
 
     this.traverse(group => {
       if (group instanceof Mesh) {
-        verticesCount += group.geometry.vertexPositions.length / 3;
-        trianglesCount += group.geometry.indices.length / 3;
+        meshes++;
+        vertices += group.geometry.vertexPositions.length / 3;
+        triangles += group.geometry.indices.length / 3;
       }
     });
 
-    this.stats.vertices = verticesCount;
-    this.stats.triangles = trianglesCount;
-    this.stats.outdated = false;
+    this.stats = {meshes, vertices, triangles, outdated: false};
   }
 }
 
