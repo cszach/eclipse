@@ -1,11 +1,19 @@
 import {Scene, Mesh} from '../primitives/exports.js';
-import {PerspectiveCamera} from '../cameras/PerspectiveCamera.js';
-import {Renderer} from './Renderer.js';
-import {vec3, mat4, quat} from 'wgpu-matrix';
-import shaderCode from '../shaders/rasterizer.wgsl';
+import {PerspectiveCamera} from '../cameras/exports.js';
 import {UP} from '../constants.js';
-import {vertexBufferLayout} from './constants.js';
 import {Light} from '../lights/Light.js';
+import {Renderer} from './Renderer.js';
+import {vertexBufferLayout} from './constants.js';
+
+// Shaders
+import rasterizerShader from './rasterizer.wgsl';
+import ambientLightShader from '../lights/ambient_light.wgsl';
+
+// External
+import {vec3, mat4, quat} from 'wgpu-matrix';
+import {BLINN_PHONG, SOLID_COLOR} from '../materials/constants.js';
+import {BlinnPhong} from '../materials/BlinnPhong.js';
+import {SolidColor} from '../materials/SolidColor.js';
 
 class Rasterizer implements Renderer {
   readonly canvas: HTMLCanvasElement;
@@ -168,7 +176,7 @@ class Rasterizer implements Renderer {
     const numComponents = 9; // Position X, Y, Z, normal X, Y, Z, U & V, matIdx
     const vertexData = new Float32Array(scene.stats.vertices * numComponents);
     const indexData = new Float32Array(scene.stats.triangles * 3);
-    const materialData = new Float32Array(scene.stats.meshes * 3);
+    const materialData = new Float32Array(scene.stats.meshes * 8);
     const lightData = new Float32Array(scene.stats.lights * 8);
 
     let vertexDataOffset = 0;
@@ -182,9 +190,35 @@ class Rasterizer implements Renderer {
       if (group instanceof Mesh) {
         const mesh = group;
 
-        materialData[materialDataOffset++] = mesh.material.color[0];
-        materialData[materialDataOffset++] = mesh.material.color[1];
-        materialData[materialDataOffset++] = mesh.material.color[2];
+        // Material
+
+        let color = [0, 0, 0];
+        let specular = [0, 0, 0];
+        let shininess = 0;
+
+        if (mesh.material.type === SOLID_COLOR || BLINN_PHONG) {
+          const coloredMaterial = mesh.material as SolidColor | BlinnPhong;
+
+          color = coloredMaterial.color;
+        }
+
+        if (mesh.material.type === BLINN_PHONG) {
+          const blinnPhongMaterial = mesh.material as BlinnPhong;
+
+          specular = blinnPhongMaterial.specular;
+          shininess = blinnPhongMaterial.shininess;
+        }
+
+        materialData[materialDataOffset++] = color[0];
+        materialData[materialDataOffset++] = color[1];
+        materialData[materialDataOffset++] = color[2];
+        materialData[materialDataOffset++] = mesh.material.type;
+        materialData[materialDataOffset++] = specular[0];
+        materialData[materialDataOffset++] = specular[1];
+        materialData[materialDataOffset++] = specular[2];
+        materialData[materialDataOffset++] = shininess;
+
+        // Vertices
 
         mesh.geometry.forEachTriangle((_index, indices) => {
           indexData[indexDataOffset++] = indices[0] + numVerticesProcessed;
@@ -316,7 +350,7 @@ class Rasterizer implements Renderer {
     });
 
     const module = this.device.createShaderModule({
-      code: shaderCode,
+      code: ambientLightShader + rasterizerShader,
     });
 
     this.pipeline = this.device.createRenderPipeline({

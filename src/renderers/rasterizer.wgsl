@@ -5,6 +5,13 @@ struct Light {
   typeId: f32,
 }
 
+struct Material {
+  color: vec3f,
+  typeId: f32,
+  specular: vec3f,
+  shininess: f32
+}
+
 struct VertexInput {
   @location(1) position: vec3f,
   @location(2) normal: vec3f,
@@ -13,7 +20,7 @@ struct VertexInput {
 }
 
 @group(0) @binding(0) var<uniform> modelViewProjectionMatrix: mat4x4f;
-@group(0) @binding(1) var<storage, read> materials: array<f32>;
+@group(0) @binding(1) var<storage, read> materials: array<Material>;
 @group(0) @binding(2) var<storage, read> lights: array<Light>;
 
 struct VertexOutput {
@@ -36,11 +43,11 @@ fn vertexMain(input: VertexInput) -> VertexOutput {
 
 @fragment
 fn fragmentMain(input: VertexOutput) -> @location(0) vec4f {
-  let baseColor = vec3f(
-    materials[u32(input.materialIndex) * 3 + 0],
-    materials[u32(input.materialIndex) * 3 + 1],
-    materials[u32(input.materialIndex) * 3 + 2],
-  );
+  let material = materials[u32(input.materialIndex)];
+
+  if (u32(material.typeId) == 1) { // Solid color
+    return vec4f(material.color, 1);
+  }
 
   var color = vec3f();
 
@@ -48,8 +55,8 @@ fn fragmentMain(input: VertexOutput) -> @location(0) vec4f {
     let light = lights[i];
 
     switch u32(light.typeId) {
-      case 0: {
-        color += ambient(baseColor, light.color, light.intensity);
+      case 1: {
+        color += ambient(material.color, light.color, light.intensity);
       }
       default: {
         // noop
@@ -60,6 +67,3 @@ fn fragmentMain(input: VertexOutput) -> @location(0) vec4f {
   return vec4f(color, 1);
 }
 
-fn ambient(baseColor: vec3f, lightColor: vec3f, lightIntensity: f32) -> vec3f {
-  return baseColor * lightColor * lightIntensity;
-}

@@ -1,0 +1,4 @@
+const SOLID_COLOR = 1;
+const BLINN_PHONG = 2;
+
+export {SOLID_COLOR, BLINN_PHONG};

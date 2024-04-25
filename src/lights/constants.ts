@@ -1,3 +1,3 @@
-const AMBIENT_LIGHT = 0;
+const AMBIENT_LIGHT = 1;
 
 export {AMBIENT_LIGHT};
