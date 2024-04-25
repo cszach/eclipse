@@ -7,9 +7,9 @@ struct Light {
 
 struct Material {
   color: vec3f,
-  typeId: f32,
+  shininess: f32,
   specular: vec3f,
-  shininess: f32
+  typeId: f32,
 }
 
 struct VertexInput {

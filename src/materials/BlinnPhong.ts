@@ -1,7 +1,9 @@
 import {Material} from './Material.js';
+import {BLINN_PHONG} from './constants.js';
 import {vec3, Vec3} from 'wgpu-matrix';
 
 class BlinnPhong extends Material {
+  override readonly type = BLINN_PHONG;
   color: Vec3;
   specular: Vec3;
   shininess: number;

@@ -198,7 +198,10 @@ class Rasterizer implements Renderer {
         let specular = [0, 0, 0];
         let shininess = 0;
 
-        if (mesh.material.type === SOLID_COLOR || BLINN_PHONG) {
+        if (
+          mesh.material.type === SOLID_COLOR ||
+          mesh.material.type === BLINN_PHONG
+        ) {
           const coloredMaterial = mesh.material as SolidColor | BlinnPhong;
 
           color = coloredMaterial.color;
@@ -214,11 +217,11 @@ class Rasterizer implements Renderer {
         materialData[materialDataOffset++] = color[0];
         materialData[materialDataOffset++] = color[1];
         materialData[materialDataOffset++] = color[2];
-        materialData[materialDataOffset++] = mesh.material.type;
+        materialData[materialDataOffset++] = shininess;
         materialData[materialDataOffset++] = specular[0];
         materialData[materialDataOffset++] = specular[1];
         materialData[materialDataOffset++] = specular[2];
-        materialData[materialDataOffset++] = shininess;
+        materialData[materialDataOffset++] = mesh.material.type;
 
         // Vertices
 
