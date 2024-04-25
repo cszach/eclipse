@@ -9,6 +9,7 @@ import {vertexBufferLayout} from './constants.js';
 import solidColorShader from '../materials/solid_color.wgsl';
 import blinnPhongShader from '../materials/blinn_phong.wgsl';
 import ambientLightShader from '../lights/ambient_light.wgsl';
+import pointLightShader from '../lights/point_light.wgsl';
 import rasterizerShader from './rasterizer.wgsl';
 
 // External
@@ -24,6 +25,8 @@ class Rasterizer implements Renderer {
   private device?: GPUDevice;
   private context?: GPUCanvasContext | null;
   private format?: GPUTextureFormat;
+  private depthTexture?: GPUTexture;
+  private renderPassDescriptor?: GPURenderPassDescriptor;
   private bindGroupLayout?: GPUBindGroupLayout;
   private bindGroup?: GPUBindGroup;
   private pipeline?: GPURenderPipeline;
@@ -52,6 +55,8 @@ class Rasterizer implements Renderer {
     this.device = device;
 
     this.setCanvasFormatAndContext();
+    this.setDepthTexture();
+    this.setRenderPassDescriptor();
     this.setBindGroup();
     this.setPipeline();
   }
@@ -61,11 +66,34 @@ class Rasterizer implements Renderer {
     // if statement redundant.
     if (
       !this.device ||
+      !this.depthTexture ||
+      !this.renderPassDescriptor ||
       !this.uniformBuffer ||
       !this.context ||
       !this.pipeline
     ) {
       throw Error('Renderer has not been initiated. Call .init() first.');
+    }
+
+    const canvasTexture = this.context.getCurrentTexture();
+
+    this.renderPassDescriptor.colorAttachments[0].view =
+      canvasTexture.createView();
+
+    if (
+      this.depthTexture.width !== canvasTexture.width ||
+      this.depthTexture.height !== canvasTexture.height
+    ) {
+      this.depthTexture.destroy();
+
+      this.depthTexture = this.device.createTexture({
+        size: [canvasTexture.width, canvasTexture.height],
+        format: 'depth24plus',
+        usage: GPUTextureUsage.RENDER_ATTACHMENT,
+      });
+
+      this.renderPassDescriptor.depthStencilAttachment.view =
+        this.depthTexture.createView();
     }
 
     if (scene.stats.outdated) {
@@ -105,8 +133,11 @@ class Rasterizer implements Renderer {
       UP
     );
 
-    const mvpMatrix = mat4.multiply(camera.projectionMatrix, viewMatrix);
-    this.device.queue.writeBuffer(this.uniformBuffer, 0, mvpMatrix);
+    const viewProjectionMatrix = mat4.multiply(
+      camera.projectionMatrix,
+      viewMatrix
+    );
+    this.device.queue.writeBuffer(this.uniformBuffer, 0, viewProjectionMatrix);
 
     // Create the material buffer
 
@@ -147,16 +178,7 @@ class Rasterizer implements Renderer {
     // Render pass
 
     const encoder = this.device.createCommandEncoder();
-    const pass = encoder.beginRenderPass({
-      colorAttachments: [
-        {
-          view: this.context.getCurrentTexture().createView(),
-          loadOp: 'clear',
-          clearValue: [0, 0, 0, 1],
-          storeOp: 'store',
-        },
-      ],
-    });
+    const pass = encoder.beginRenderPass(this.renderPassDescriptor);
 
     pass.setPipeline(this.pipeline);
     pass.setVertexBuffer(0, this.vertexBuffer);
@@ -189,6 +211,14 @@ class Rasterizer implements Renderer {
     let numVerticesProcessed = 0;
 
     scene.traverse((group, globalPosition, globalRotation, globalScale) => {
+      const worldMatrix = mat4.translation(globalPosition);
+      const {angle, axis} = quat.toAxisAngle(globalRotation);
+      mat4.rotate(worldMatrix, axis, angle, worldMatrix);
+      mat4.scale(worldMatrix, globalScale, worldMatrix);
+
+      const worldMatrixInverseTranspose = mat4.invert(worldMatrix);
+      mat4.transpose(worldMatrixInverseTranspose, worldMatrixInverseTranspose);
+
       if (group instanceof Mesh) {
         const mesh = group;
 
@@ -231,17 +261,6 @@ class Rasterizer implements Renderer {
           indexData[indexDataOffset++] = indices[2] + numVerticesProcessed;
         });
 
-        const worldMatrix = mat4.translation(globalPosition);
-        const {angle, axis} = quat.toAxisAngle(globalRotation);
-        mat4.rotate(worldMatrix, axis, angle, worldMatrix);
-        mat4.scale(worldMatrix, globalScale, worldMatrix);
-
-        const worldMatrixInverseTranspose = mat4.invert(worldMatrix);
-        mat4.transpose(
-          worldMatrixInverseTranspose,
-          worldMatrixInverseTranspose
-        );
-
         mesh.geometry.forEachVertex((_index, position, normal, uv) => {
           const transformedPosition = vec3.transformMat4(position, worldMatrix);
 
@@ -267,12 +286,17 @@ class Rasterizer implements Renderer {
       }
 
       // Light
-      if ('color' in group && 'intensity' in group) {
-        const light = group as Light;
+      if (group instanceof Light) {
+        const light = group;
 
-        lightData[lightDataOffset++] = light.localPosition[0]; // 0
-        lightData[lightDataOffset++] = light.localPosition[1];
-        lightData[lightDataOffset++] = light.localPosition[2];
+        const transformedLightPosition = vec3.transformMat4(
+          [0, 0, 0],
+          worldMatrix
+        );
+
+        lightData[lightDataOffset++] = transformedLightPosition[0]; // 0
+        lightData[lightDataOffset++] = transformedLightPosition[1];
+        lightData[lightDataOffset++] = transformedLightPosition[2];
         lightData[lightDataOffset++] = light.intensity;
         lightData[lightDataOffset++] = light.color[0]; // 16
         lightData[lightDataOffset++] = light.color[1];
@@ -297,6 +321,63 @@ class Rasterizer implements Renderer {
 
     this.format = navigator.gpu.getPreferredCanvasFormat();
     this.context.configure({device: this.device, format: this.format});
+  }
+
+  private setDepthTexture() {
+    if (!this.device) {
+      throw new Error('GPU device has not been set.');
+    }
+
+    if (!this.context) {
+      throw new Error(
+        'Canvas context has not been set. Call .setCanvasFormatAndContext() first.'
+      );
+    }
+
+    const canvasTexture = this.context.getCurrentTexture();
+    this.depthTexture = this.device.createTexture({
+      size: [canvasTexture.width, canvasTexture.height],
+      format: 'depth24plus',
+      usage: GPUTextureUsage.RENDER_ATTACHMENT,
+    });
+  }
+
+  private setRenderPassDescriptor() {
+    if (!this.device) {
+      throw new Error('GPU device has not been set.');
+    }
+
+    if (!this.context) {
+      throw new Error(
+        'Canvas context has not been set. Call .setCanvasFormatAndContext() first.'
+      );
+    }
+
+    if (!this.depthTexture) {
+      throw new Error(
+        'Depth texture has not been set. Call .setDepthTexture() first.'
+      );
+    }
+
+    const canvasTexture = this.context.getCurrentTexture();
+
+    this.renderPassDescriptor = {
+      label: 'Rasterizer render pass descriptor',
+      colorAttachments: [
+        {
+          view: canvasTexture.createView(),
+          loadOp: 'clear',
+          clearValue: [0, 0, 0, 1],
+          storeOp: 'store',
+        },
+      ],
+      depthStencilAttachment: {
+        view: this.depthTexture.createView(),
+        depthClearValue: 1.0,
+        depthLoadOp: 'clear',
+        depthStoreOp: 'store',
+      },
+    };
   }
 
   private setBindGroup() {
@@ -327,7 +408,7 @@ class Rasterizer implements Renderer {
 
     this.uniformBuffer = this.device.createBuffer({
       label: 'Rasterizer uniform buffer',
-      size: /*elements=*/ 16 * /*float32 size=*/ 4, // MVP matrix
+      size: /*elements=*/ 16 * /*float32 size=*/ 4, // View-projection matrix
       usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
     });
   }
@@ -359,6 +440,7 @@ class Rasterizer implements Renderer {
         solidColorShader +
         blinnPhongShader +
         ambientLightShader +
+        pointLightShader +
         rasterizerShader,
     });
 
@@ -378,6 +460,16 @@ class Rasterizer implements Renderer {
             format: this.format,
           },
         ],
+      },
+      primitive: {
+        topology: 'triangle-list',
+        frontFace: 'ccw',
+        cullMode: 'back',
+      },
+      depthStencil: {
+        depthWriteEnabled: true,
+        depthCompare: 'less',
+        format: 'depth24plus',
       },
     });
   }
