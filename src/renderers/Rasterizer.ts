@@ -6,8 +6,10 @@ import {Renderer} from './Renderer.js';
 import {vertexBufferLayout} from './constants.js';
 
 // Shaders
-import rasterizerShader from './rasterizer.wgsl';
+import solidColorShader from '../materials/solid_color.wgsl';
+import blinnPhongShader from '../materials/blinn_phong.wgsl';
 import ambientLightShader from '../lights/ambient_light.wgsl';
+import rasterizerShader from './rasterizer.wgsl';
 
 // External
 import {vec3, mat4, quat} from 'wgpu-matrix';
@@ -350,7 +352,11 @@ class Rasterizer implements Renderer {
     });
 
     const module = this.device.createShaderModule({
-      code: ambientLightShader + rasterizerShader,
+      code:
+        solidColorShader +
+        blinnPhongShader +
+        ambientLightShader +
+        rasterizerShader,
     });
 
     this.pipeline = this.device.createRenderPipeline({

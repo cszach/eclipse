@@ -45,25 +45,16 @@ fn vertexMain(input: VertexInput) -> VertexOutput {
 fn fragmentMain(input: VertexOutput) -> @location(0) vec4f {
   let material = materials[u32(input.materialIndex)];
 
-  if (u32(material.typeId) == 1) { // Solid color
-    return vec4f(material.color, 1);
-  }
-
-  var color = vec3f();
-
-  for (var i = 0u; i < arrayLength(&lights); i++) {
-    let light = lights[i];
-
-    switch u32(light.typeId) {
-      case 1: {
-        color += ambient(material.color, light.color, light.intensity);
-      }
-      default: {
-        // noop
-      }
+  switch u32(material.typeId) {
+    case 1: {
+      return solid_color(material.color);
+    }
+    case 2: {
+      return blinn_phong(material.color, &lights);
+    }
+    default: {
+      return vec4f();
     }
   }
-
-  return vec4f(color, 1);
 }
 
