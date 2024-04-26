@@ -49,8 +49,8 @@ fn fragmentMain(input: VertexOutput) -> @location(0) vec4f {
   let material = materials[u32(input.materialIndex)];
 
   switch u32(material.typeId) {
-    case 1: {
-      return solid_color(material.color);
+    case 1: { // Solid color
+      return vec4f(material.color, 1);
     }
     case 2: {
       return blinn_phong(material, input, &lights, cameraPosition);

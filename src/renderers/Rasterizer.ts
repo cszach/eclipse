@@ -8,8 +8,6 @@ import {vertexBufferLayout} from './constants.js';
 // Shaders
 import solidColorShader from '../materials/solid_color.wgsl';
 import blinnPhongShader from '../materials/blinn_phong.wgsl';
-import ambientLightShader from '../lights/ambient_light.wgsl';
-import pointLightShader from '../lights/point_light.wgsl';
 import rasterizerShader from './rasterizer.wgsl';
 
 // External
@@ -468,12 +466,7 @@ class Rasterizer implements Renderer {
     });
 
     const module = this.device.createShaderModule({
-      code:
-        solidColorShader +
-        blinnPhongShader +
-        ambientLightShader +
-        pointLightShader +
-        rasterizerShader,
+      code: solidColorShader + blinnPhongShader + rasterizerShader,
     });
 
     this.pipeline = this.device.createRenderPipeline({
