@@ -21,9 +21,7 @@ const renderer = new Rasterizer(canvas);
 
 renderer.init().then(() => {
   const box = new Box(1, 1, 1);
-  const cube = new Mesh(box, new BlinnPhong([1, 0.5, 0.31], [0, 0, 1], 30));
-  vec3.set(0, 0, 0, cube.localPosition);
-  quat.fromEuler(0, Math.PI / 6, 0, 'xyz', cube.localQuaternion);
+
   const scene = new Scene();
   const camera = new PerspectiveCamera(
     Math.PI / 4,
@@ -34,7 +32,21 @@ renderer.init().then(() => {
   const pointLight = new PointLight();
   const lightBulb = new Mesh(new Box(0.2, 0.2, 0.2), new SolidColor());
 
-  scene.add(cube, new AmbientLight([1, 1, 1], 0.1), pointLight, lightBulb);
+  // Generate random cubes
+  for (let i = 0; i < 50; i++) {
+    const cube = new Mesh(
+      box,
+      new BlinnPhong(vec3.random(), vec3.random(), Math.random() * 100)
+    );
+
+    vec3.copy(vec3.mulScalar(vec3.random(), 4), cube.localPosition);
+    const randomAngle = vec3.random();
+    quat.fromEuler(...randomAngle, 'xyz', cube.localQuaternion);
+
+    scene.add(cube);
+  }
+
+  scene.add(new AmbientLight([1, 1, 1], 0.1), pointLight, lightBulb);
 
   // Canvas resize
 
@@ -60,10 +72,8 @@ renderer.init().then(() => {
 
     i++;
 
-    // quat.fromEuler(i / 100, 0, i / 100, 'xyz', cube.localQuaternion);
-
-    vec3.set(1, Math.sin(i / 100), Math.cos(i / 100), pointLight.localPosition);
-    vec3.set(1, Math.sin(i / 100), Math.cos(i / 100), lightBulb.localPosition);
+    vec3.set(Math.sin(i / 100), 0, Math.cos(i / 100), pointLight.localPosition);
+    vec3.set(Math.sin(i / 100), 0, Math.cos(i / 100), lightBulb.localPosition);
 
     window.requestAnimationFrame(frame);
   }
