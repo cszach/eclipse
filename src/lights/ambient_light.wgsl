@@ -1,3 +1,3 @@
-fn ambient(baseColor: vec3f, lightColor: vec3f, lightIntensity: f32) -> vec3f {
-  return baseColor * lightColor * lightIntensity;
+fn ambient(light: Light, baseColor: vec3f) -> vec3f {
+  return baseColor * light.color * light.intensity;
 }

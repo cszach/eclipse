@@ -31,7 +31,8 @@ class Rasterizer implements Renderer {
   private bindGroup?: GPUBindGroup;
   private pipeline?: GPURenderPipeline;
 
-  private uniformBuffer?: GPUBuffer;
+  private viewProjectionMatrixBuffer?: GPUBuffer;
+  private cameraPositionBuffer?: GPUBuffer;
   private vertexBuffer?: GPUBuffer;
   private indexBuffer?: GPUBuffer;
   private materialBuffer?: GPUBuffer;
@@ -68,7 +69,8 @@ class Rasterizer implements Renderer {
       !this.device ||
       !this.depthTexture ||
       !this.renderPassDescriptor ||
-      !this.uniformBuffer ||
+      !this.viewProjectionMatrixBuffer ||
+      !this.cameraPositionBuffer ||
       !this.context ||
       !this.pipeline
     ) {
@@ -125,10 +127,15 @@ class Rasterizer implements Renderer {
     new Uint32Array(this.indexBuffer.getMappedRange()).set(indexData);
     this.indexBuffer.unmap();
 
-    // Create the camera uniform buffer (model-view-projection matrix)
+    // Create the camera uniform buffer (view projection matrix)
+
+    const transformedCameraPosition = vec3.transformMat4(
+      [0, 0, 0],
+      mat4.translation(camera.localPosition)
+    );
 
     const viewMatrix = mat4.lookAt(
-      camera.localPosition,
+      transformedCameraPosition,
       vec3.create(0, 0, 0),
       UP
     );
@@ -137,7 +144,17 @@ class Rasterizer implements Renderer {
       camera.projectionMatrix,
       viewMatrix
     );
-    this.device.queue.writeBuffer(this.uniformBuffer, 0, viewProjectionMatrix);
+    this.device.queue.writeBuffer(
+      this.viewProjectionMatrixBuffer,
+      0,
+      viewProjectionMatrix
+    );
+
+    this.device.queue.writeBuffer(
+      this.cameraPositionBuffer,
+      0,
+      transformedCameraPosition
+    );
 
     // Create the material buffer
 
@@ -162,14 +179,18 @@ class Rasterizer implements Renderer {
       entries: [
         {
           binding: 0,
-          resource: {buffer: this.uniformBuffer},
+          resource: {buffer: this.viewProjectionMatrixBuffer},
         },
         {
           binding: 1,
-          resource: {buffer: this.materialBuffer},
+          resource: {buffer: this.cameraPositionBuffer},
         },
         {
           binding: 2,
+          resource: {buffer: this.materialBuffer},
+        },
+        {
+          binding: 3,
           resource: {buffer: this.lightBuffer},
         },
       ],
@@ -396,19 +417,30 @@ class Rasterizer implements Renderer {
         {
           binding: 1,
           visibility: GPUShaderStage.FRAGMENT,
-          buffer: {type: 'read-only-storage'},
+          buffer: {type: 'uniform'},
         },
         {
           binding: 2,
           visibility: GPUShaderStage.FRAGMENT,
           buffer: {type: 'read-only-storage'},
         },
+        {
+          binding: 3,
+          visibility: GPUShaderStage.FRAGMENT,
+          buffer: {type: 'read-only-storage'},
+        },
       ],
     });
 
-    this.uniformBuffer = this.device.createBuffer({
-      label: 'Rasterizer uniform buffer',
-      size: /*elements=*/ 16 * /*float32 size=*/ 4, // View-projection matrix
+    this.viewProjectionMatrixBuffer = this.device.createBuffer({
+      label: 'Rasterizer view projection matrix buffer',
+      size: /*elements=*/ 16 * /*float32 size=*/ 4,
+      usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+    });
+
+    this.cameraPositionBuffer = this.device.createBuffer({
+      label: 'Rasterizer camera position buffer',
+      size: /*elements=*/ 3 * /*float32 size=*/ 4,
       usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
     });
   }

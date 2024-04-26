@@ -1,4 +1,4 @@
-fn blinn_phong(baseColor: vec3f, lights: ptr<storage, array<Light>>) -> vec4f {
+fn blinn_phong(material: Material, frag: VertexOutput, lights: ptr<storage, array<Light>>, cameraPosition: vec3f) -> vec4f {
   var color = vec3f();
 
   for (var i = 0u; i < arrayLength(lights); i++) {
@@ -6,7 +6,10 @@ fn blinn_phong(baseColor: vec3f, lights: ptr<storage, array<Light>>) -> vec4f {
 
     switch u32(light.typeId) {
       case 1: {
-        color += ambient(baseColor, light.color, light.intensity);
+        color += ambient(light, material.color);
+      }
+      case 2: {
+        color += pointLight(light, material, frag.normal, frag.worldPosition, cameraPosition);
       }
       default: {
         // Do nothing

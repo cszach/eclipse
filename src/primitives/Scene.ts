@@ -39,16 +39,12 @@ class Scene extends Group {
         meshes++;
         vertices += group.geometry.vertexPositions.length / 3;
         triangles += group.geometry.indices.length / 3;
-      } else if (this.isLight(group)) {
+      } else if (group instanceof Light) {
         lights++;
       }
     });
 
     this.stats = {meshes, vertices, triangles, lights, outdated: false};
-  }
-
-  private isLight(object: any): object is Light {
-    return 'color' in object && 'intensity' in object;
   }
 }
 

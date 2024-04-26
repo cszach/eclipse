@@ -4,9 +4,11 @@ import {
   PerspectiveCamera,
   Scene,
   SolidColor,
+  BlinnPhong,
+  Rasterizer,
+  AmbientLight,
+  PointLight,
 } from '../../src/index.js';
-import {AmbientLight} from '../../src/lights/AmbientLight.js';
-import {Rasterizer} from '../../src/renderers/Rasterizer.js';
 import {quat, vec3} from 'wgpu-matrix';
 
 const canvas = document.querySelector('canvas');
@@ -19,11 +21,9 @@ const renderer = new Rasterizer(canvas);
 
 renderer.init().then(() => {
   const box = new Box(1, 1, 1);
-  const centerCube = new Mesh(box, new SolidColor([1, 1, 1]));
-  const rightCube = new Mesh(box, new SolidColor([1, 1, 1]));
-  vec3.set(2, 0, 0, rightCube.localPosition);
-  const leftCube = new Mesh(box, new SolidColor([1, 1, 1]));
-  vec3.set(-2, 0, 0, leftCube.localPosition);
+  const cube = new Mesh(box, new BlinnPhong([1, 0.5, 0.31], [0, 0, 1], 30));
+  vec3.set(0, 0, 0, cube.localPosition);
+  quat.fromEuler(0, Math.PI / 6, 0, 'xyz', cube.localQuaternion);
   const scene = new Scene();
   const camera = new PerspectiveCamera(
     Math.PI / 4,
@@ -31,14 +31,10 @@ renderer.init().then(() => {
   );
   vec3.set(0, 0, 4, camera.localPosition);
 
-  scene.add(
-    centerCube,
-    rightCube,
-    leftCube,
-    new AmbientLight([1, 0, 0]),
-    new AmbientLight([0, 1, 0]),
-    new AmbientLight([0, 0, 1])
-  );
+  const pointLight = new PointLight();
+  const lightBulb = new Mesh(new Box(0.2, 0.2, 0.2), new SolidColor());
+
+  scene.add(cube, new AmbientLight([1, 1, 1], 0.1), pointLight, lightBulb);
 
   // Canvas resize
 
@@ -62,9 +58,12 @@ renderer.init().then(() => {
   function frame() {
     renderer.render(scene, camera);
 
-    quat.fromEuler(i++ / 300, 0, i / 300, 'xyz', centerCube.localQuaternion);
-    quat.fromEuler(i++ / 300, 0, i / 300, 'xyz', rightCube.localQuaternion);
-    quat.fromEuler(i++ / 300, 0, i / 300, 'xyz', leftCube.localQuaternion);
+    i++;
+
+    // quat.fromEuler(i / 100, 0, i / 100, 'xyz', cube.localQuaternion);
+
+    vec3.set(1, Math.sin(i / 100), Math.cos(i / 100), pointLight.localPosition);
+    vec3.set(1, Math.sin(i / 100), Math.cos(i / 100), lightBulb.localPosition);
 
     window.requestAnimationFrame(frame);
   }

@@ -18,11 +18,11 @@ class Box extends Geometry {
 
     //   v2-------v3
     //   /|       /|
-    // v1-------v0 |     +Y
-    //  | |      | |      |
-    //  |v6------|v7      |___+X
-    //  |/       |/      /
-    // v5-------v4     +Z
+    // v1-------v0 |    +Y
+    //  | |      | |     |
+    //  |v6------|v7     |---+X
+    //  |/       |/     /
+    // v5-------v4    +Z
 
     // For correct shading of a cube, each vertex needs to be duplicated twice,
     // resulting in 3 copies. Each copy will have its own vertex normal pointing
@@ -30,9 +30,9 @@ class Box extends Geometry {
     // prettier-ignore
     const vertices = new Float32Array([
        // v0
-       halfWidth,  halfHeight,  halfDepth, // 0
-       halfWidth,  halfHeight,  halfDepth, // 1
-       halfWidth,  halfHeight,  halfDepth, // 2
+       halfWidth,  halfHeight,  halfDepth, // 0 X face
+       halfWidth,  halfHeight,  halfDepth, // 1 Y face
+       halfWidth,  halfHeight,  halfDepth, // 2 Z face
 
        // v1
       -halfWidth,  halfHeight,  halfDepth, // 3
@@ -71,19 +71,21 @@ class Box extends Geometry {
     ]);
 
     // 3 consecutive entries in the index buffer define a triangle. Each index
-    // points to a vertex stored in the vertex data above. Each index has the
-    // expression B * 3 + O, where B is the base index (e.g. v0-v7 in the box
-    // diagram above) and O is the offset (0 if the triangle is for a face
-    // facing along the X axis, 1 for Y, and 2 for Z). The term B is multiplied
-    // by 3 because there are 3 copies for each vertex.
+    // points to a vertex stored in the vertex data above. The index for the X
+    // face must point to a vertex in the X face, and so on. In addition, keep
+    // in mind that front-facing faces need to have their vertices listed
+    // counter-clockwise, and we are culling (not drawing) back-facing
+    // triangles. This means that based on the cube diagram above, triangles for
+    // the +X, +Y, and +Z need to have their vertices listed counter-clockwise,
+    // and the -X, -Y, and -Z clockwise.
     // prettier-ignore
     const indices = new Uint32Array([
-      0 * 3 + 0, 3 * 3 + 0, 7 * 3 + 0, 7 * 3 + 0, 4 * 3 + 0, 0 * 3 + 0, // +X face
-      2 * 3 + 1, 3 * 3 + 1, 0 * 3 + 1, 0 * 3 + 1, 1 * 3 + 1, 2 * 3 + 1, // +Y face
-      1 * 3 + 2, 0 * 3 + 2, 4 * 3 + 2, 4 * 3 + 2, 5 * 3 + 2, 1 * 3 + 2, // +Z face
-      2 * 3 + 0, 1 * 3 + 0, 5 * 3 + 0, 5 * 3 + 0, 6 * 3 + 0, 2 * 3 + 0, // -X face
-      5 * 3 + 1, 4 * 3 + 1, 7 * 3 + 1, 7 * 3 + 1, 6 * 3 + 1, 5 * 3 + 1, // -Y face
-      3 * 3 + 2, 2 * 3 + 2, 6 * 3 + 2, 6 * 3 + 2, 7 * 3 + 2, 3 * 3 + 2, // -Z face
+       0, 12, 21, 21,  9,  0, // +X face
+       1, 10,  7,  7,  4,  1, // +Y face
+       2,  5, 14, 14,  5, 17, // +Z face
+       3,  6, 18, 18, 15,  3, // -X face
+      16, 19, 13, 13, 19, 22, // -Y face
+       8, 11, 20, 20, 11, 23, // -Z face
     ]);
 
     // prettier-ignore

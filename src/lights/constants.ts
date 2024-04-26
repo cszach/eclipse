@@ -1,3 +1,4 @@
 const AMBIENT_LIGHT = 1;
+const POINT_LIGHT = 2;
 
-export {AMBIENT_LIGHT};
+export {AMBIENT_LIGHT, POINT_LIGHT};
