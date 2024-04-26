@@ -48,10 +48,10 @@ renderer.init().then(() => {
   const tallBox = new Mesh(box, new BlinnPhong([1, 1, 1]));
   vec3.set(-0.25, -0.2, -0.25, tallBox.localPosition);
   vec3.set(1, 2, 1, tallBox.localScale);
-  quat.fromEuler(0, Math.PI / 12, 0, 'xyz', tallBox.localQuaternion);
+  quat.fromEuler(0, Math.PI / 10, 0, 'xyz', tallBox.localQuaternion);
   const shortBox = new Mesh(box, new BlinnPhong([1, 1, 1]));
   vec3.set(0.2, -0.25, 0.55, shortBox.localPosition);
-  quat.fromEuler(0, -Math.PI / 12, 0, 'xyz', shortBox.localQuaternion);
+  quat.fromEuler(0, -Math.PI / 10, 0, 'xyz', shortBox.localQuaternion);
 
   const ambient = new AmbientLight([1, 1, 1], 0.1);
   const light = new PointLight();
