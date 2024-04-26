@@ -14,13 +14,13 @@ fn point_light(
   let halfwayVector = normalize(-lightDirection - viewDirection);
   let reflectDirection = reflect(lightDirection, normal);
 
-  let diffuseStrength = max(dot(normalize(normal), -lightDirection), 0);
-  let specular = pow(max(dot(normal, halfwayVector), 0.0), material.shininess);
+  let diffuse = max(dot(normalize(normal), -lightDirection), 0);
+  let diffuseColor = light.color * diffuse;
 
-  let diffuseColor = light.color * diffuseStrength;
+  let specular = pow(max(dot(normal, halfwayVector), 0.0), material.shininess);
   let specularColor = material.specular * specular;
 
-  return (diffuseColor + specularColor) * material.color;
+  return (diffuseColor + specularColor) * light.intensity * material.color;
 }
 
 fn blinn_phong(

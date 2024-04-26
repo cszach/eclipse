@@ -74,6 +74,7 @@ renderer.init().then(() => {
 
     vec3.set(Math.sin(i / 100), 0, Math.cos(i / 100), pointLight.localPosition);
     vec3.set(Math.sin(i / 100), 0, Math.cos(i / 100), lightBulb.localPosition);
+    pointLight.intensity = Math.sin(i / 75) / 2 + 0.5;
 
     window.requestAnimationFrame(frame);
   }
