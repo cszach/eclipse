@@ -1,4 +1,5 @@
 const EPSILON = 0.001;
+const MAX_F32 = 0x1.fffffep+127;
 
 struct Viewport {
   // Viewport:
@@ -22,6 +23,13 @@ struct Vertex {
 
 alias IndexedTriangle = vec3u;
 
+struct Material {
+  color: vec3f,
+  shininess: f32,
+  specular: vec3f,
+  typeId: f32,
+}
+
 struct Ray {
   origin: vec3f,
   direction: vec3f,
@@ -42,6 +50,7 @@ struct HitRecord {
 @group(0) @binding(4) var<uniform> viewport: Viewport;
 @group(0) @binding(5) var<storage, read> vertices: array<Vertex>;
 @group(0) @binding(6) var<storage, read> triangles: array<IndexedTriangle>;
+@group(0) @binding(7) var<storage, read> materials: array<Material>;
 
 const WORKGROUP_SIZE = 8;
 
@@ -57,11 +66,12 @@ fn computeMain(@builtin(global_invocation_id) pixel: vec3u) {
     let ray = ray(pixel.xy);
     var color = vec3f();
     var hit_record: HitRecord;
+    var t_min = MAX_F32;
 
     for (var i = 0u; i < arrayLength(&triangles); i++) {
-        if ray_intersects_triangle(ray, triangles[i], &hit_record) {
-            color = vec3f(1.0);
-            break;
+        if ray_intersects_triangle(ray, triangles[i], &hit_record) && hit_record.t < t_min {
+            t_min = hit_record.t;
+            color = materials[u32(hit_record.materialIndex)].color;
         }
     }
 

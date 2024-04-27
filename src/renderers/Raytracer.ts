@@ -174,7 +174,7 @@ class Raytracer implements Renderer {
     this.renderPassDescriptor.colorAttachments[0].view =
       canvasTexture.createView();
 
-    const {vertexData, indexData} = this.getSceneData(scene);
+    const {vertexData, indexData, materialData} = this.getSceneData(scene);
 
     if (this.vertexBuffer) this.vertexBuffer.destroy();
     this.vertexBuffer = this.device.createBuffer({
@@ -188,13 +188,23 @@ class Raytracer implements Renderer {
 
     if (this.indexBuffer) this.indexBuffer.destroy();
     this.indexBuffer = this.device.createBuffer({
-      label: 'Rasterizer index buffer',
+      label: 'Ray tracer index buffer',
       size: indexData.byteLength,
       usage: GPUBufferUsage.STORAGE,
       mappedAtCreation: true,
     });
     new Uint32Array(this.indexBuffer.getMappedRange()).set(indexData);
     this.indexBuffer.unmap();
+
+    if (this.materialBuffer) this.materialBuffer.destroy();
+    this.materialBuffer = this.device.createBuffer({
+      label: 'Ray tracer material buffer',
+      size: materialData.byteLength,
+      usage: GPUBufferUsage.STORAGE,
+      mappedAtCreation: true,
+    });
+    new Float32Array(this.materialBuffer.getMappedRange()).set(materialData);
+    this.materialBuffer.unmap();
 
     this.bindGroup = this.device.createBindGroup({
       label: 'Ray tracer bind group',
@@ -227,6 +237,10 @@ class Raytracer implements Renderer {
         {
           binding: 6,
           resource: {buffer: this.indexBuffer},
+        },
+        {
+          binding: 7,
+          resource: {buffer: this.materialBuffer},
         },
       ],
     });
@@ -500,6 +514,12 @@ class Raytracer implements Renderer {
         {
           // Faces
           binding: 6,
+          visibility: GPUShaderStage.COMPUTE,
+          buffer: {type: 'read-only-storage'},
+        },
+        {
+          // Materials
+          binding: 7,
           visibility: GPUShaderStage.COMPUTE,
           buffer: {type: 'read-only-storage'},
         },
