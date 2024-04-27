@@ -19,12 +19,13 @@ class Raytracer implements Renderer {
   private computePipeline?: GPUComputePipeline;
   private renderPipeline?: GPURenderPipeline;
 
-  private imageDimensionsBuffer?: GPUBuffer;
+  private frameBuffer?: GPUBuffer;
+  private frameDimensionsBuffer?: GPUBuffer;
+  private frameNumberBuffer?: GPUBuffer;
 
   private viewProjectionMatrixBuffer?: GPUBuffer;
   private cameraPositionBuffer?: GPUBuffer;
   private vertexBuffer?: GPUBuffer;
-  private indexBuffer?: GPUBuffer;
   private materialBuffer?: GPUBuffer;
   private lightBuffer?: GPUBuffer;
 
@@ -49,41 +50,111 @@ class Raytracer implements Renderer {
 
     this.device = device;
 
+    this.frameDimensionsBuffer = this.device.createBuffer({
+      label: 'Ray tracer frame dimensions buffer',
+      size: 2 * Uint32Array.BYTES_PER_ELEMENT,
+      usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+    });
+
+    this.frameNumberBuffer = this.device.createBuffer({
+      label: 'Ray tracer frame number buffer',
+      size: 4,
+      usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+    });
+
     this.setCanvasFormatAndContext();
     this.setRenderPassDescriptor();
     this.setBindGroup();
     this.setVertexBuffer();
     this.setPipeline();
+    this.updateCanvas();
   }
 
-  render(scene: Scene, camera: PerspectiveCamera) {
+  render(scene: Scene, camera: PerspectiveCamera, frame = 0) {
     if (
       !this.device ||
       !this.context ||
       !this.renderPassDescriptor ||
       !this.renderPipeline ||
-      !this.vertexBuffer //||
-      // !this.bindGroup
+      !this.vertexBuffer ||
+      !this.bindGroupLayout ||
+      !this.frameNumberBuffer
     ) {
       throw Error('Renderer has not been initiated. Call .init() first.');
     }
+
+    this.device.queue.writeBuffer(
+      this.frameNumberBuffer,
+      0,
+      new Uint32Array([frame])
+    );
 
     const canvasTexture = this.context.getCurrentTexture();
 
     this.renderPassDescriptor.colorAttachments[0].view =
       canvasTexture.createView();
 
+    this.bindGroup = this.device.createBindGroup({
+      label: 'Ray tracer bind group',
+      layout: this.bindGroupLayout,
+      entries: [
+        {
+          binding: 0,
+          resource: {buffer: this.frameDimensionsBuffer},
+        },
+        {
+          binding: 1,
+          resource: {buffer: this.frameBuffer},
+        },
+        {
+          binding: 2,
+          resource: {buffer: this.frameNumberBuffer},
+        },
+      ],
+    });
+
     const encoder = this.device.createCommandEncoder();
     const pass = encoder.beginRenderPass(this.renderPassDescriptor);
 
     pass.setPipeline(this.renderPipeline);
     pass.setVertexBuffer(0, this.vertexBuffer);
-    // pass.setBindGroup(0, this.bindGroup);
+    pass.setBindGroup(0, this.bindGroup);
 
     pass.draw(6);
     pass.end();
 
     this.device.queue.submit([encoder.finish()]);
+  }
+
+  updateCanvas() {
+    if (!this.device) {
+      throw new Error('GPU device has not been set.');
+    }
+
+    if (!this.frameDimensionsBuffer) {
+      throw new Error('Frame dimensions buffer has not been created.');
+    }
+
+    if (this.frameBuffer) {
+      this.frameBuffer.destroy();
+    }
+
+    this.frameBuffer = this.device.createBuffer({
+      label: 'Ray tracer frame buffer',
+      size:
+        4 *
+        Float32Array.BYTES_PER_ELEMENT *
+        this.canvas.width *
+        this.canvas.height,
+      usage: GPUBufferUsage.STORAGE,
+    });
+
+    // Update the frame dimensions buffer
+    this.device.queue.writeBuffer(
+      this.frameDimensionsBuffer,
+      0,
+      new Uint32Array([this.canvas.width, this.canvas.height])
+    );
   }
 
   private setCanvasFormatAndContext() {
@@ -137,7 +208,7 @@ class Raytracer implements Renderer {
       entries: [
         {
           binding: 0,
-          visibility: GPUShaderStage.COMPUTE,
+          visibility: GPUShaderStage.COMPUTE | GPUShaderStage.FRAGMENT,
           buffer: {type: 'uniform'},
         },
         {
@@ -145,15 +216,12 @@ class Raytracer implements Renderer {
           visibility: GPUShaderStage.COMPUTE | GPUShaderStage.FRAGMENT,
           buffer: {type: 'storage'},
         },
+        {
+          binding: 2,
+          visibility: GPUShaderStage.COMPUTE | GPUShaderStage.FRAGMENT,
+          buffer: {type: 'uniform'},
+        },
       ],
-    });
-
-    // TODO: frame buffer
-
-    this.imageDimensionsBuffer = this.device.createBuffer({
-      label: 'Ray tracer image dimensions buffer',
-      size: 2 * 4,
-      usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
     });
   }
 
@@ -224,9 +292,7 @@ class Raytracer implements Renderer {
 
     const pipelineLayout = this.device.createPipelineLayout({
       label: 'Rasterizer pipeline layout',
-      bindGroupLayouts: [
-        /*this.bindGroupLayout*/
-      ],
+      bindGroupLayouts: [this.bindGroupLayout],
     });
 
     const module = this.device.createShaderModule({

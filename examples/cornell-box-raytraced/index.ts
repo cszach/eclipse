@@ -91,14 +91,17 @@ renderer.init().then(() => {
       canvas.width = width;
       canvas.height = height;
 
+      renderer.updateCanvas();
       camera.aspectRatio = canvas.width / canvas.height;
     });
   });
 
   resizeObserver.observe(canvas);
 
+  let i = 0;
+
   function frame() {
-    renderer.render(scene, camera);
+    renderer.render(scene, camera, i++);
 
     window.requestAnimationFrame(frame);
   }
