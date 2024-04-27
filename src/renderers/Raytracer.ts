@@ -1,8 +1,15 @@
 import {PerspectiveCamera} from '../cameras/exports.js';
-import {Scene} from '../primitives/exports.js';
+import {Mesh, Scene} from '../primitives/exports.js';
 import {Renderer} from './Renderer.js';
-import {vec3} from 'wgpu-matrix';
+import {mat4, quat, vec3} from 'wgpu-matrix';
 import {UP} from '../constants.js';
+import {
+  SOLID_COLOR,
+  BLINN_PHONG,
+  SolidColor,
+  BlinnPhong,
+} from '../materials/exports.js';
+import {Light} from '../lights/exports.js';
 
 // Shaders
 import randomShader from './random.wgsl';
@@ -29,9 +36,9 @@ class Raytracer implements Renderer {
   private cameraPositionBuffer?: GPUBuffer;
   private viewportBuffer?: GPUBuffer;
 
-  private viewProjectionMatrixBuffer?: GPUBuffer;
-  private cameraPositionBuffer?: GPUBuffer;
+  private frameBufferViewVertexBuffer?: GPUBuffer;
   private vertexBuffer?: GPUBuffer;
+  private indexBuffer?: GPUBuffer;
   private materialBuffer?: GPUBuffer;
   private lightBuffer?: GPUBuffer;
 
@@ -96,7 +103,7 @@ class Raytracer implements Renderer {
       !this.renderPassDescriptor ||
       !this.computePipeline ||
       !this.renderPipeline ||
-      !this.vertexBuffer ||
+      !this.frameBufferViewVertexBuffer ||
       !this.bindGroupLayout ||
       !this.frameNumberBuffer ||
       !this.cameraPositionBuffer ||
@@ -167,6 +174,28 @@ class Raytracer implements Renderer {
     this.renderPassDescriptor.colorAttachments[0].view =
       canvasTexture.createView();
 
+    const {vertexData, indexData} = this.getSceneData(scene);
+
+    if (this.vertexBuffer) this.vertexBuffer.destroy();
+    this.vertexBuffer = this.device.createBuffer({
+      label: 'Ray tracer vertex buffer',
+      size: vertexData.byteLength,
+      usage: GPUBufferUsage.STORAGE,
+      mappedAtCreation: true,
+    });
+    new Float32Array(this.vertexBuffer.getMappedRange()).set(vertexData);
+    this.vertexBuffer.unmap();
+
+    if (this.indexBuffer) this.indexBuffer.destroy();
+    this.indexBuffer = this.device.createBuffer({
+      label: 'Rasterizer index buffer',
+      size: indexData.byteLength,
+      usage: GPUBufferUsage.STORAGE,
+      mappedAtCreation: true,
+    });
+    new Uint32Array(this.indexBuffer.getMappedRange()).set(indexData);
+    this.indexBuffer.unmap();
+
     this.bindGroup = this.device.createBindGroup({
       label: 'Ray tracer bind group',
       layout: this.bindGroupLayout,
@@ -191,6 +220,14 @@ class Raytracer implements Renderer {
           binding: 4,
           resource: {buffer: this.viewportBuffer},
         },
+        {
+          binding: 5,
+          resource: {buffer: this.vertexBuffer},
+        },
+        {
+          binding: 6,
+          resource: {buffer: this.indexBuffer},
+        },
       ],
     });
 
@@ -211,7 +248,7 @@ class Raytracer implements Renderer {
     const renderPass = encoder.beginRenderPass(this.renderPassDescriptor);
 
     renderPass.setPipeline(this.renderPipeline);
-    renderPass.setVertexBuffer(0, this.vertexBuffer);
+    renderPass.setVertexBuffer(0, this.frameBufferViewVertexBuffer);
     renderPass.setBindGroup(0, this.bindGroup);
 
     renderPass.draw(6);
@@ -249,6 +286,130 @@ class Raytracer implements Renderer {
       0,
       new Uint32Array([this.canvas.width, this.canvas.height])
     );
+  }
+
+  private getSceneData(scene: Scene): {
+    vertexData: Float32Array;
+    indexData: Float32Array;
+    materialData: Float32Array;
+    lightData: Float32Array;
+  } {
+    if (scene.stats.outdated) {
+      scene.updateStats();
+    }
+
+    const vertexData = new Float32Array(scene.stats.vertices * 12);
+    const indexData = new Float32Array(scene.stats.triangles * 4);
+    const materialData = new Float32Array(scene.stats.meshes * 8);
+    const lightData = new Float32Array(scene.stats.lights * 8);
+
+    let vertexDataOffset = 0;
+    let indexDataOffset = 0;
+    let materialDataOffset = 0;
+    let materialIndex = 0;
+    let lightDataOffset = 0;
+    let numVerticesProcessed = 0;
+
+    scene.traverse((group, globalPosition, globalRotation, globalScale) => {
+      const worldMatrix = mat4.translation(globalPosition);
+      const {angle, axis} = quat.toAxisAngle(globalRotation);
+      mat4.rotate(worldMatrix, axis, angle, worldMatrix);
+      mat4.scale(worldMatrix, globalScale, worldMatrix);
+
+      const worldMatrixInverseTranspose = mat4.invert(worldMatrix);
+      mat4.transpose(worldMatrixInverseTranspose, worldMatrixInverseTranspose);
+
+      if (group instanceof Mesh) {
+        const mesh = group;
+
+        // Material
+
+        let color = [0, 0, 0];
+        let specular = [0, 0, 0];
+        let shininess = 0;
+
+        if (
+          mesh.material.type === SOLID_COLOR ||
+          mesh.material.type === BLINN_PHONG
+        ) {
+          const coloredMaterial = mesh.material as SolidColor | BlinnPhong;
+
+          color = coloredMaterial.color;
+        }
+
+        if (mesh.material.type === BLINN_PHONG) {
+          const blinnPhongMaterial = mesh.material as BlinnPhong;
+
+          specular = blinnPhongMaterial.specular;
+          shininess = blinnPhongMaterial.shininess;
+        }
+
+        materialData[materialDataOffset++] = color[0];
+        materialData[materialDataOffset++] = color[1];
+        materialData[materialDataOffset++] = color[2];
+        materialData[materialDataOffset++] = shininess;
+        materialData[materialDataOffset++] = specular[0];
+        materialData[materialDataOffset++] = specular[1];
+        materialData[materialDataOffset++] = specular[2];
+        materialData[materialDataOffset++] = mesh.material.type;
+
+        // Vertices
+
+        mesh.geometry.forEachTriangle((_index, indices) => {
+          indexData[indexDataOffset++] = indices[0] + numVerticesProcessed;
+          indexData[indexDataOffset++] = indices[1] + numVerticesProcessed;
+          indexData[indexDataOffset++] = indices[2] + numVerticesProcessed;
+          vertexData[vertexDataOffset++] = 0; // Pad
+        });
+
+        mesh.geometry.forEachVertex((_index, position, normal, uv) => {
+          const transformedPosition = vec3.transformMat4(position, worldMatrix);
+
+          const transformedNormal = vec3.transformMat4(
+            normal,
+            worldMatrixInverseTranspose
+          );
+
+          vertexData[vertexDataOffset++] = transformedPosition[0];
+          vertexData[vertexDataOffset++] = transformedPosition[1];
+          vertexData[vertexDataOffset++] = transformedPosition[2];
+          vertexData[vertexDataOffset++] = 0; // Pad
+          vertexData[vertexDataOffset++] = transformedNormal[0];
+          vertexData[vertexDataOffset++] = transformedNormal[1];
+          vertexData[vertexDataOffset++] = transformedNormal[2];
+          vertexData[vertexDataOffset++] = 0; // Pad
+          vertexData[vertexDataOffset++] = uv[0];
+          vertexData[vertexDataOffset++] = uv[1];
+          vertexData[vertexDataOffset++] = materialIndex;
+          vertexData[vertexDataOffset++] = 0; // Pad
+
+          numVerticesProcessed++;
+        });
+
+        materialIndex++;
+      }
+
+      // Light
+      if (group instanceof Light) {
+        const light = group;
+
+        const transformedLightPosition = vec3.transformMat4(
+          [0, 0, 0],
+          worldMatrix
+        );
+
+        lightData[lightDataOffset++] = transformedLightPosition[0]; // 0
+        lightData[lightDataOffset++] = transformedLightPosition[1];
+        lightData[lightDataOffset++] = transformedLightPosition[2];
+        lightData[lightDataOffset++] = light.intensity;
+        lightData[lightDataOffset++] = light.color[0]; // 16
+        lightData[lightDataOffset++] = light.color[1];
+        lightData[lightDataOffset++] = light.color[2];
+        lightData[lightDataOffset++] = light.type;
+      }
+    });
+
+    return {vertexData, indexData, materialData, lightData};
   }
 
   private setCanvasFormatAndContext() {
@@ -301,29 +462,46 @@ class Raytracer implements Renderer {
       label: 'Rasterizer bind group layout',
       entries: [
         {
+          // Frame dimensions
           binding: 0,
           visibility: GPUShaderStage.COMPUTE | GPUShaderStage.FRAGMENT,
           buffer: {type: 'uniform'},
         },
         {
+          // Frame buffer
           binding: 1,
           visibility: GPUShaderStage.COMPUTE | GPUShaderStage.FRAGMENT,
           buffer: {type: 'storage'},
         },
         {
+          // Frame
           binding: 2,
           visibility: GPUShaderStage.COMPUTE | GPUShaderStage.FRAGMENT,
           buffer: {type: 'uniform'},
         },
         {
+          // Camera position
           binding: 3,
           visibility: GPUShaderStage.COMPUTE,
           buffer: {type: 'uniform'},
         },
         {
+          // Viewport
           binding: 4,
           visibility: GPUShaderStage.COMPUTE,
           buffer: {type: 'uniform'},
+        },
+        {
+          // Vertices
+          binding: 5,
+          visibility: GPUShaderStage.COMPUTE,
+          buffer: {type: 'storage'},
+        },
+        {
+          // Faces
+          binding: 6,
+          visibility: GPUShaderStage.COMPUTE,
+          buffer: {type: 'storage'},
         },
       ],
     });
@@ -349,14 +527,16 @@ class Raytracer implements Renderer {
        1,  1, 1, 0, // v1
     ]);
 
-    this.vertexBuffer = this.device.createBuffer({
+    this.frameBufferViewVertexBuffer = this.device.createBuffer({
       label: 'Ray tracer vertex buffer',
       size: vertexData.byteLength,
       usage: GPUBufferUsage.VERTEX,
       mappedAtCreation: true,
     });
-    new Float32Array(this.vertexBuffer.getMappedRange()).set(vertexData);
-    this.vertexBuffer.unmap();
+    new Float32Array(this.frameBufferViewVertexBuffer.getMappedRange()).set(
+      vertexData
+    );
+    this.frameBufferViewVertexBuffer.unmap();
   }
 
   private setComputePipeline() {
