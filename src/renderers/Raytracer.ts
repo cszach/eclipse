@@ -2,12 +2,12 @@ import {PerspectiveCamera} from '../cameras/exports.js';
 import {Scene} from '../primitives/exports.js';
 import {Renderer} from './Renderer.js';
 import {vec3} from 'wgpu-matrix';
+import {UP} from '../constants.js';
 
 // Shaders
-import raytracerShader from './raytracer.wgsl';
-import raytracingShader from './raytracing.wgsl';
 import randomShader from './random.wgsl';
-import {UP} from '../constants.js';
+import raytracerShader from './raytracer.wgsl';
+import frameBufferViewShader from './frame_buffer_view.wgsl';
 
 class Raytracer implements Renderer {
   readonly canvas: HTMLCanvasElement;
@@ -381,7 +381,7 @@ class Raytracer implements Renderer {
       compute: {
         module: this.device.createShaderModule({
           label: 'Ray tracer shader module',
-          code: raytracingShader,
+          code: raytracerShader,
         }),
         entryPoint: 'computeMain',
       },
@@ -430,7 +430,7 @@ class Raytracer implements Renderer {
     };
 
     const module = this.device.createShaderModule({
-      code: randomShader + raytracerShader,
+      code: randomShader + frameBufferViewShader,
     });
 
     this.renderPipeline = this.device.createRenderPipeline({
