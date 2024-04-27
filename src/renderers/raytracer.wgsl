@@ -1,5 +1,5 @@
-@group(0) @binding(0) var<uniform> frameDimensions: vec2u;
-@group(0) @binding(1) var<storage, read_write> frameBuffer: array<vec3f>;
+@group(0) @binding(0) var<uniform> resolution: vec2u;
+@group(0) @binding(1) var<storage, read_write> frame_buffer: array<vec3f>;
 @group(0) @binding(2) var<uniform> frame: u32;
 
 struct VertexInput {
@@ -23,10 +23,15 @@ fn vertexMain(input: VertexInput) -> VertexOutput {
 
 @fragment
 fn fragmentMain(input: VertexOutput) -> @location(0) vec4f {
-    let pixel_x = u32(input.uv.x * f32(frameDimensions.x));
-    let pixel_y = u32(input.uv.y * f32(frameDimensions.y));
+    let pixel_x = u32(input.uv.x * f32(resolution.x));
+    let pixel_y = u32(input.uv.y * f32(resolution.y));
 
-    var seed = initRng(vec2u(pixel_x, pixel_y), frameDimensions, frame);
+    let frame_buffer_index = pixel_x + pixel_y * resolution.x;
 
-    return vec4f(randomFloat(&seed), randomFloat(&seed), randomFloat(&seed), 1);
+    return vec4f(
+        frame_buffer[frame_buffer_index].x,
+        frame_buffer[frame_buffer_index].y,
+        frame_buffer[frame_buffer_index].z,
+        1
+    );
 }
