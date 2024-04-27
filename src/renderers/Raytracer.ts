@@ -359,7 +359,7 @@ class Raytracer implements Renderer {
           indexData[indexDataOffset++] = indices[0] + numVerticesProcessed;
           indexData[indexDataOffset++] = indices[1] + numVerticesProcessed;
           indexData[indexDataOffset++] = indices[2] + numVerticesProcessed;
-          vertexData[vertexDataOffset++] = 0; // Pad
+          indexData[indexDataOffset++] = 0; // Pad
         });
 
         mesh.geometry.forEachVertex((_index, position, normal, uv) => {
@@ -495,13 +495,13 @@ class Raytracer implements Renderer {
           // Vertices
           binding: 5,
           visibility: GPUShaderStage.COMPUTE,
-          buffer: {type: 'storage'},
+          buffer: {type: 'read-only-storage'},
         },
         {
           // Faces
           binding: 6,
           visibility: GPUShaderStage.COMPUTE,
-          buffer: {type: 'storage'},
+          buffer: {type: 'read-only-storage'},
         },
       ],
     });

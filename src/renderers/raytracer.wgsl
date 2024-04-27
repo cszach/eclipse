@@ -20,11 +20,18 @@ struct Vertex {
   materialIndex: f32,
 }
 
-alias IndexedFace = vec3u;
+alias IndexedTriangle = vec3u;
 
 struct Ray {
   origin: vec3f,
   direction: vec3f,
+}
+
+struct HitRecord {
+  t: f32,
+  position: vec3f,
+  normal: vec3f,
+  materialIndex: f32,
 }
 
 
@@ -33,8 +40,8 @@ struct Ray {
 @group(0) @binding(2) var<uniform> frame: u32;
 @group(0) @binding(3) var<uniform> camera_position: vec3f;
 @group(0) @binding(4) var<uniform> viewport: Viewport;
-@group(0) @binding(5) var<storage> vertices: array<Vertex>;
-@group(0) @binding(6) var<storage> faces: array<IndexedFace>;
+@group(0) @binding(5) var<storage, read> vertices: array<Vertex>;
+@group(0) @binding(6) var<storage, read> triangles: array<IndexedTriangle>;
 
 const WORKGROUP_SIZE = 8;
 
@@ -48,18 +55,64 @@ fn computeMain(@builtin(global_invocation_id) pixel: vec3u) {
     }
 
     let ray = ray(pixel.xy);
+    var color = vec3f();
+    var hit_record: HitRecord;
+
+    for (var i = 0u; i < arrayLength(&triangles); i++) {
+        if ray_intersects_triangle(ray, triangles[i], &hit_record) {
+            color = vec3f(1.0);
+            break;
+        }
+    }
 
     let frame_buffer_index = pixel.x + pixel.y * frame_dimensions.x;
 
-    frame_buffer[frame_buffer_index] = vec3f(
-        f32(pixel.x) / f32(frame_dimensions.x),
-        f32(pixel.y) / f32(frame_dimensions.y),
-        1
-    );
+    frame_buffer[frame_buffer_index] = color;
 }
 
 fn ray(pixel: vec2u) -> Ray {
     let pixel_center = viewport.origin + f32(pixel.x) * viewport.du + f32(pixel.y) * viewport.dv;
 
     return Ray(camera_position, pixel_center - camera_position);
+}
+
+fn ray_intersects_triangle(
+    ray: Ray,
+    triangle: IndexedTriangle,
+    hit_record_ptr: ptr<function, HitRecord>
+) -> bool {
+    let edge1 = vertices[triangle.y].position - vertices[triangle.x].position;
+    let edge2 = vertices[triangle.z].position - vertices[triangle.x].position;
+    let ray_cross_edge2 = cross(ray.direction, edge2);
+    let determinant = dot(edge1, ray_cross_edge2);
+
+    if determinant > -EPSILON && determinant < EPSILON {
+        return false;
+    }
+
+    let determinant_inverse = 1.0 / determinant;
+    let s = ray.origin - vertices[triangle.x].position;
+    let u = determinant_inverse * dot(s, ray_cross_edge2);
+
+    if u < 0 || u > 1 {
+        return false;
+    }
+
+    let s_cross_edge1 = cross(s, edge1);
+    let v = determinant_inverse * dot(ray.direction, s_cross_edge1);
+
+    if v < 0 || u + v > 1 {
+        return false;
+    }
+
+    let t = determinant_inverse * dot(edge2, s_cross_edge1);
+
+    if t > EPSILON {
+        (*hit_record_ptr).t = t;
+        (*hit_record_ptr).position = ray.origin + ray.direction * t;
+        (*hit_record_ptr).materialIndex = vertices[triangle.x].materialIndex;
+        return true;
+    }
+
+    return false;
 }
