@@ -6,19 +6,19 @@ fn randomInt(state: ptr<function, u32>) {
     *state = (word >> 22u) ^ word;
 }
 
-fn randomFloat(state: ptr<function, u32>) -> f32 {
+fn random_float(state: ptr<function, u32>) -> f32 {
     randomInt(state);
     return f32(*state) / f32(0xffffffffu);
 }
 
-fn randomInRange(min: f32, max: f32, state: ptr<function, u32>) -> f32 {
-    return min + randomFloat(state) * (max - min);
+fn random_in_range(min: f32, max: f32, state: ptr<function, u32>) -> f32 {
+    return min + random_float(state) * (max - min);
 }
 
-fn randomInUnitSphere(state: ptr<function, u32>) -> vec3f {
-    let radius = pow(randomFloat(state), 0.33333f);
-    let theta = PI * randomFloat(state);
-    let phi = 2f * PI * randomFloat(state);
+fn random_in_unit_sphere(state: ptr<function, u32>) -> vec3f {
+    let radius = pow(random_float(state), 0.33333f);
+    let theta = PI * random_float(state);
+    let phi = 2f * PI * random_float(state);
 
     return vec3f(
         radius * sin(theta) * cos(phi),
@@ -27,8 +27,8 @@ fn randomInUnitSphere(state: ptr<function, u32>) -> vec3f {
     );
 }
 
-fn randomInHemisphere(normal: vec3f, state: ptr<function, u32>) -> vec3f {
-    var v = randomInUnitSphere(state);
+fn random_in_hemisphere(normal: vec3f, state: ptr<function, u32>) -> vec3f {
+    var v = random_in_unit_sphere(state);
 
     if dot(v, normal) < 0 {
         v = -v;
@@ -37,19 +37,19 @@ fn randomInHemisphere(normal: vec3f, state: ptr<function, u32>) -> vec3f {
     return v;
 }
 
-fn randomInPixel(state: ptr<function, u32>) -> vec3f {
-    let x = -0.5 + randomFloat(state);
-    let y = -0.5 + randomFloat(state);
+fn random_in_pixel(state: ptr<function, u32>) -> vec3f {
+    let x = -0.5 + random_float(state);
+    let y = -0.5 + random_float(state);
 
     return x * viewport.du + y * viewport.dv;
 }
 
-fn initRng(pixel: vec2<u32>, resolution: vec2<u32>, frame: u32) -> u32 {
-    let seed = dot(pixel, vec2<u32>(1u, resolution.x)) ^ jenkinsHash(frame);
-    return jenkinsHash(seed);
+fn init_rng(pixel: vec2<u32>, resolution: vec2<u32>, frame: u32) -> u32 {
+    let seed = dot(pixel, vec2<u32>(1u, resolution.x)) ^ jenkins_hash(frame);
+    return jenkins_hash(seed);
 }
 
-fn jenkinsHash(input: u32) -> u32 {
+fn jenkins_hash(input: u32) -> u32 {
     var x = input;
     x += x << 10u;
     x ^= x >> 6u;
