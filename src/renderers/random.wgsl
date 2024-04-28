@@ -30,7 +30,7 @@ fn randomInUnitSphere(state: ptr<function, u32>) -> vec3f {
 fn randomInHemisphere(normal: vec3f, state: ptr<function, u32>) -> vec3f {
     var v = randomInUnitSphere(state);
 
-    if dot(v, normalize(normal)) > 0 {
+    if dot(v, normal) < 0 {
         v = -v;
     }
 

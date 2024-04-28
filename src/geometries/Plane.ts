@@ -44,6 +44,7 @@ class Plane extends Geometry {
     const indices = new Uint32Array([
       0, 2, 6, 6, 2, 4, // +Z face
       1, 7, 3, 3, 7, 5, // -Z face
+      // 0, 1, 3, 3, 1, 2
     ]);
 
     // prettier-ignore

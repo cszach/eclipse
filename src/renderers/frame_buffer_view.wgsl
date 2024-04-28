@@ -33,5 +33,5 @@ fn fragmentMain(input: VertexOutput) -> @location(0) vec4f {
         frame_buffer[frame_buffer_index].y,
         frame_buffer[frame_buffer_index].z,
         1
-    ) / f32(frame);
+    ) / f32(frame + 1);
 }

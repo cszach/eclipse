@@ -1,4 +1,4 @@
-import {vec3, vec2} from 'wgpu-matrix';
+import {vec3, vec2, Vec3} from 'wgpu-matrix';
 
 class Geometry {
   vertexPositions: Float32Array;
@@ -72,7 +72,7 @@ class Geometry {
     }
   }
 
-  forEachTriangle(callback: (index: number, indices: vec3) => void) {
+  forEachTriangle(callback: (index: number, indices: Vec3) => void) {
     for (let i = 0; i < this.indices.length; i += 3) {
       callback(
         i / 3,

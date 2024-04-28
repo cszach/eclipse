@@ -73,17 +73,16 @@ fn computeMain(@builtin(global_invocation_id) pixel: vec3u) {
 
         for (var bounce = 0u; bounce < 6u; bounce++) {
             var hit = false;
-            var t_min = MAX_F32;
             var hit_record: HitRecord;
-            var a: vec3f;
+            var closest_hit: HitRecord;
+            closest_hit.t = MAX_F32;
             var isLight = false;
 
             for (var i = 0u; i < arrayLength(&triangles); i++) {
-                if ray_intersects_triangle(ray, triangles[i], &hit_record) && hit_record.t < t_min && dot(hit_record.normal, ray.direction) > 0 {
+                if ray_intersects_triangle(ray, triangles[i], &hit_record) && hit_record.t < closest_hit.t && dot(hit_record.normal, ray.direction) < 0 {
                     hit = true;
-                    t_min = hit_record.t;
-                    a = materials[u32(hit_record.materialIndex)].color;
                     isLight = materials[u32(hit_record.materialIndex)].typeId == 1;
+                    closest_hit = hit_record;
                 }
             }
 
@@ -91,8 +90,8 @@ fn computeMain(@builtin(global_invocation_id) pixel: vec3u) {
                 if isLight {
                     attenuation = vec3f(10);
                 } else {
-                    attenuation *= a;
-                    ray = Ray(hit_record.position, randomInHemisphere(hit_record.normal, &seed));
+                    attenuation *= materials[u32(closest_hit.materialIndex)].color;
+                    ray = Ray(closest_hit.position, randomInHemisphere(closest_hit.normal, &seed));
                 }
             } else {
                 let unit_direction = normalize(ray.direction);
