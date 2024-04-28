@@ -152,10 +152,10 @@ fn ray_intersects_triangle(
 
     let t = determinant_inverse * dot(edge2, s_cross_edge1);
 
-    if t > EPSILON {
+    if t > EPSILON { // Hit
         (*hit_record_ptr).t = t;
         (*hit_record_ptr).position = ray.origin + ray.direction * t;
-        (*hit_record_ptr).normal = vertices[triangle.x].normal;
+        (*hit_record_ptr).normal = cross(edge1, edge2);
         (*hit_record_ptr).materialIndex = vertices[triangle.x].materialIndex;
         return true;
     }
