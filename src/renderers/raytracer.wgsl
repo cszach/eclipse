@@ -131,6 +131,7 @@ fn ray_intersects_triangle(
     let ray_cross_edge2 = cross(ray.direction, edge2);
     let determinant = dot(edge1, ray_cross_edge2);
 
+    // Check if the ray is parallel to the triangle
     if determinant > -EPSILON && determinant < EPSILON {
         return false;
     }
@@ -153,9 +154,16 @@ fn ray_intersects_triangle(
     let t = determinant_inverse * dot(edge2, s_cross_edge1);
 
     if t > EPSILON { // Hit
+        // Interpolate surface normal
+
+        let na = vertices[triangle.x].normal;
+        let nb = vertices[triangle.y].normal;
+        let nc = vertices[triangle.z].normal;
+        let surface_normal = u * na + v * nb + (1 - u - v) * nc;
+
         (*hit_record_ptr).t = t;
         (*hit_record_ptr).position = ray.origin + ray.direction * t;
-        (*hit_record_ptr).normal = cross(edge1, edge2);
+        (*hit_record_ptr).normal = surface_normal;
         (*hit_record_ptr).materialIndex = vertices[triangle.x].materialIndex;
         return true;
     }
