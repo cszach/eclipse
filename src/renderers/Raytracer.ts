@@ -8,6 +8,7 @@ import {
   BLINN_PHONG,
   SolidColor,
   BlinnPhong,
+  MIRROR,
 } from '../materials/exports.js';
 import {Light} from '../lights/exports.js';
 
@@ -56,7 +57,7 @@ class Raytracer implements Renderer {
 
     const device = await adapter.requestDevice({
       requiredLimits: {
-        maxStorageBufferBindingSize: 536870912, // 1024 MB
+        maxStorageBufferBindingSize: 536870912, // 512 MB
       },
     });
     if (!device) throw Error('Could not request WebGPU logical device.');
@@ -344,7 +345,8 @@ class Raytracer implements Renderer {
 
         if (
           mesh.material.type === SOLID_COLOR ||
-          mesh.material.type === BLINN_PHONG
+          mesh.material.type === BLINN_PHONG ||
+          mesh.material.type === MIRROR
         ) {
           const coloredMaterial = mesh.material as SolidColor | BlinnPhong;
 

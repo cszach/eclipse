@@ -64,7 +64,7 @@ fn computeMain(@builtin(global_invocation_id) pixel: vec3u) {
     }
 
     const NUM_SAMPLES = 8u;
-    var seed = initRng(pixel.xy, frame_dimensions, frame);
+    var seed = init_rng(pixel.xy, frame_dimensions, frame);
     var color = vec3f(0);
 
     for (var sample = 0u; sample < NUM_SAMPLES; sample++) {
@@ -76,22 +76,26 @@ fn computeMain(@builtin(global_invocation_id) pixel: vec3u) {
             var hit_record: HitRecord;
             var closest_hit: HitRecord;
             closest_hit.t = MAX_F32;
-            var isLight = false;
 
             for (var i = 0u; i < arrayLength(&triangles); i++) {
                 if ray_intersects_triangle(ray, triangles[i], &hit_record) && hit_record.t < closest_hit.t && dot(hit_record.normal, ray.direction) < 0 {
                     hit = true;
-                    isLight = materials[u32(hit_record.materialIndex)].typeId == 1;
                     closest_hit = hit_record;
                 }
             }
 
+            let material = materials[u32(closest_hit.materialIndex)];
+
             if hit {
-                if isLight {
+                if material.typeId == 1 {
                     attenuation = vec3f(10);
+                    break;
+                } else if material.typeId == 3 {
+                    attenuation *= material.color;
+                    ray = Ray(closest_hit.position, reflect(ray.direction, closest_hit.normal));
                 } else {
-                    attenuation *= materials[u32(closest_hit.materialIndex)].color;
-                    ray = Ray(closest_hit.position, randomInHemisphere(closest_hit.normal, &seed));
+                    attenuation *= material.color;
+                    ray = Ray(closest_hit.position, random_in_hemisphere(closest_hit.normal, &seed));
                 }
             } else {
                 let unit_direction = normalize(ray.direction);
@@ -116,7 +120,7 @@ fn computeMain(@builtin(global_invocation_id) pixel: vec3u) {
 
 fn ray(pixel: vec2u, seed_ptr: ptr<function, u32>) -> Ray {
     let pixel_center = viewport.origin + f32(pixel.x) * viewport.du + f32(pixel.y) * viewport.dv;
-    let pixel_sample = pixel_center + randomInPixel(seed_ptr);
+    let pixel_sample = pixel_center + random_in_pixel(seed_ptr);
 
     return Ray(camera_position, pixel_sample - camera_position);
 }

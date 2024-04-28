@@ -1,4 +1,5 @@
 const SOLID_COLOR = 1;
 const BLINN_PHONG = 2;
+const MIRROR = 3;
 
-export {SOLID_COLOR, BLINN_PHONG};
+export {SOLID_COLOR, BLINN_PHONG, MIRROR};
