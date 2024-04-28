@@ -56,7 +56,7 @@ class Raytracer implements Renderer {
 
     const device = await adapter.requestDevice({
       requiredLimits: {
-        maxStorageBufferBindingSize: 536870912, // 512 MB
+        maxStorageBufferBindingSize: 536870912, // 1024 MB
       },
     });
     if (!device) throw Error('Could not request WebGPU logical device.');
@@ -581,7 +581,7 @@ class Raytracer implements Renderer {
       compute: {
         module: this.device.createShaderModule({
           label: 'Ray tracer shader module',
-          code: raytracerShader,
+          code: randomShader + raytracerShader,
         }),
         entryPoint: 'computeMain',
       },
@@ -630,7 +630,7 @@ class Raytracer implements Renderer {
     };
 
     const module = this.device.createShaderModule({
-      code: randomShader + frameBufferViewShader,
+      code: frameBufferViewShader,
     });
 
     this.renderPipeline = this.device.createRenderPipeline({

@@ -1,3 +1,5 @@
+const PI = 3.141592653589793;
+
 fn randomInt(state: ptr<function, u32>) {
     let oldState = *state + 747796405u + 2891336453u;
     let word = ((oldState >> ((oldState >> 28u) + 4u)) ^ oldState) * 277803737u;
@@ -11,6 +13,35 @@ fn randomFloat(state: ptr<function, u32>) -> f32 {
 
 fn randomInRange(min: f32, max: f32, state: ptr<function, u32>) -> f32 {
     return min + randomFloat(state) * (max - min);
+}
+
+fn randomInUnitSphere(state: ptr<function, u32>) -> vec3f {
+    let radius = pow(randomFloat(state), 0.33333f);
+    let theta = PI * randomFloat(state);
+    let phi = 2f * PI * randomFloat(state);
+
+    return vec3f(
+        radius * sin(theta) * cos(phi),
+        radius * sin(theta) * sin(phi),
+        radius * cos(theta),
+    );
+}
+
+fn randomInHemisphere(normal: vec3f, state: ptr<function, u32>) -> vec3f {
+    var v = randomInUnitSphere(state);
+
+    if dot(v, normalize(normal)) > 0 {
+        v = -v;
+    }
+
+    return v;
+}
+
+fn randomInPixel(state: ptr<function, u32>) -> vec3f {
+    let x = -0.5 + randomFloat(state);
+    let y = -0.5 + randomFloat(state);
+
+    return x * viewport.du + y * viewport.dv;
 }
 
 fn initRng(pixel: vec2<u32>, resolution: vec2<u32>, frame: u32) -> u32 {

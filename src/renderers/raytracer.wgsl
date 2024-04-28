@@ -1,4 +1,4 @@
-const EPSILON = 0.001;
+const EPSILON = 0.00001;
 const MAX_F32 = 0x1.fffffep+127;
 
 struct Viewport {
@@ -63,27 +63,63 @@ fn computeMain(@builtin(global_invocation_id) pixel: vec3u) {
         return;
     }
 
-    let ray = ray(pixel.xy);
-    var color = vec3f();
-    var hit_record: HitRecord;
-    var t_min = MAX_F32;
+    const NUM_SAMPLES = 8u;
+    var seed = initRng(pixel.xy, frame_dimensions, frame);
+    var color = vec3f(0);
 
-    for (var i = 0u; i < arrayLength(&triangles); i++) {
-        if ray_intersects_triangle(ray, triangles[i], &hit_record) && hit_record.t < t_min {
-            t_min = hit_record.t;
-            color = materials[u32(hit_record.materialIndex)].color;
+    for (var sample = 0u; sample < NUM_SAMPLES; sample++) {
+        var ray = ray(pixel.xy, &seed);
+        var attenuation = vec3f(1);
+
+        for (var bounce = 0u; bounce < 6u; bounce++) {
+            var hit = false;
+            var t_min = MAX_F32;
+            var hit_record: HitRecord;
+            var a: vec3f;
+            var isLight = false;
+
+            for (var i = 0u; i < arrayLength(&triangles); i++) {
+                if ray_intersects_triangle(ray, triangles[i], &hit_record) && hit_record.t < t_min && dot(hit_record.normal, ray.direction) > 0 {
+                    hit = true;
+                    t_min = hit_record.t;
+                    a = materials[u32(hit_record.materialIndex)].color;
+                    isLight = materials[u32(hit_record.materialIndex)].typeId == 1;
+                }
+            }
+
+            if hit {
+                if isLight {
+                    attenuation = vec3f(10);
+                } else {
+                    attenuation *= a;
+                    ray = Ray(hit_record.position, randomInHemisphere(hit_record.normal, &seed));
+                }
+            } else {
+                let unit_direction = normalize(ray.direction);
+                let a = 0.5 * (unit_direction.y + 1.0);
+                let c = (1.0 - a) * vec3f(1) + a * vec3f(0.5, 0.7, 1.0);
+                // let c = vec3f(0);
+
+                attenuation = c * attenuation;
+                break;
+            }
         }
+
+        color += attenuation;
     }
+
+    color /= f32(NUM_SAMPLES);
 
     let frame_buffer_index = pixel.x + pixel.y * frame_dimensions.x;
 
-    frame_buffer[frame_buffer_index] = color;
+    frame_buffer[frame_buffer_index] += color;
 }
 
-fn ray(pixel: vec2u) -> Ray {
+fn ray(pixel: vec2u, seed_ptr: ptr<function, u32>) -> Ray {
     let pixel_center = viewport.origin + f32(pixel.x) * viewport.du + f32(pixel.y) * viewport.dv;
+    let pixel_sample = pixel_center + randomInPixel(seed_ptr);
 
-    return Ray(camera_position, pixel_center - camera_position);
+    return Ray(camera_position, pixel_sample - camera_position);
 }
 
 fn ray_intersects_triangle(
@@ -120,6 +156,7 @@ fn ray_intersects_triangle(
     if t > EPSILON {
         (*hit_record_ptr).t = t;
         (*hit_record_ptr).position = ray.origin + ray.direction * t;
+        (*hit_record_ptr).normal = vertices[triangle.x].normal;
         (*hit_record_ptr).materialIndex = vertices[triangle.x].materialIndex;
         return true;
     }
