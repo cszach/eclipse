@@ -12,6 +12,7 @@ import {
   Lambert,
 } from '../../src/index.js';
 import {quat, vec3} from 'wgpu-matrix';
+import Stats from 'stats.js';
 
 const canvas = document.querySelector('canvas');
 
@@ -84,6 +85,10 @@ renderer.init().then(() => {
     lightMesh
   );
 
+  const stats = new Stats();
+  stats.showPanel(0);
+  document.body.appendChild(stats.dom);
+
   // Canvas resize
   let i = 0;
 
@@ -106,7 +111,9 @@ renderer.init().then(() => {
   resizeObserver.observe(canvas);
 
   function frame() {
+    stats.begin();
     renderer.render(scene, camera, i++);
+    stats.end();
 
     window.requestAnimationFrame(frame);
   }
