@@ -4,7 +4,6 @@ import {
   PerspectiveCamera,
   Scene,
   SolidColor,
-  BlinnPhong,
   Raytracer,
   AmbientLight,
   PointLight,
@@ -50,7 +49,7 @@ renderer.init().then(() => {
 
   const box = new Box(0.3, 0.3, 0.3);
 
-  const tallBox = new Mesh(box, new Metal([1, 1, 1], 0));
+  const tallBox = new Mesh(box, new Metal(white, 0));
   vec3.set(-0.25, -0.2, -0.25, tallBox.localPosition);
   vec3.set(1, 2, 1, tallBox.localScale);
   quat.fromEuler(0, Math.PI / 10, 0, 'xyz', tallBox.localQuaternion);
@@ -105,8 +104,6 @@ renderer.init().then(() => {
   });
 
   resizeObserver.observe(canvas);
-
-  // renderer.render(scene, camera, 20);
 
   function frame() {
     renderer.render(scene, camera, i++);

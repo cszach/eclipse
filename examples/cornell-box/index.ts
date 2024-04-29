@@ -8,7 +8,7 @@ import {
   AmbientLight,
   PointLight,
   Plane,
-  Mirror,
+  Metal,
   Rasterizer,
 } from '../../src/index.js';
 import {quat, vec3} from 'wgpu-matrix';
@@ -55,7 +55,7 @@ renderer.init().then(() => {
 
   const box = new Box(0.3, 0.3, 0.3);
 
-  const tallBox = new Mesh(box, new Mirror([1, 1, 1]));
+  const tallBox = new Mesh(box, new Metal([1, 1, 1], 0));
   vec3.set(-0.25, -0.2, -0.25, tallBox.localPosition);
   vec3.set(1, 2, 1, tallBox.localScale);
   quat.fromEuler(0, Math.PI / 10, 0, 'xyz', tallBox.localQuaternion);

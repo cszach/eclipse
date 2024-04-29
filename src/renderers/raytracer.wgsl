@@ -53,6 +53,7 @@ struct HitRecord {
 @group(0) @binding(7) var<storage, read> materials: array<Material>;
 
 const WORKGROUP_SIZE = 8;
+const NUM_PIXEL_SAMPLES = 1u;
 
 @compute @workgroup_size(WORKGROUP_SIZE, WORKGROUP_SIZE)
 fn computeMain(@builtin(global_invocation_id) pixel: vec3u) {
@@ -63,11 +64,11 @@ fn computeMain(@builtin(global_invocation_id) pixel: vec3u) {
         return;
     }
 
-    const NUM_SAMPLES = 12u;
     var seed = init_rng(pixel.xy, frame_dimensions, frame);
     var color = vec3f(0);
+    var sample = 0u;
 
-    for (var sample = 0u; sample < NUM_SAMPLES; sample++) {
+    for (sample = 0u; sample < NUM_PIXEL_SAMPLES; sample++) {
         var ray = ray(pixel.xy, &seed);
         var attenuation = vec3f(1);
 
@@ -110,7 +111,7 @@ fn computeMain(@builtin(global_invocation_id) pixel: vec3u) {
         color += attenuation;
     }
 
-    color /= f32(NUM_SAMPLES);
+    color /= f32(sample);
 
     let frame_buffer_index = pixel.x + pixel.y * frame_dimensions.x;
 

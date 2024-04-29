@@ -15,6 +15,7 @@ import {vec3, mat4, quat} from 'wgpu-matrix';
 import {BLINN_PHONG, SOLID_COLOR} from '../materials/constants.js';
 import {BlinnPhong} from '../materials/BlinnPhong.js';
 import {SolidColor} from '../materials/SolidColor.js';
+import {Metal} from '../materials/Metal.js';
 
 class Rasterizer implements Renderer {
   readonly canvas: HTMLCanvasElement;
@@ -247,11 +248,11 @@ class Rasterizer implements Renderer {
         let specular = [0, 0, 0];
         let shininess = 0;
 
-        if (
-          mesh.material.type === SOLID_COLOR ||
-          mesh.material.type === BLINN_PHONG
-        ) {
-          const coloredMaterial = mesh.material as SolidColor | BlinnPhong;
+        if (mesh.material.type < 5) {
+          const coloredMaterial = mesh.material as
+            | SolidColor
+            | BlinnPhong
+            | Metal;
 
           color = coloredMaterial.color;
         }
