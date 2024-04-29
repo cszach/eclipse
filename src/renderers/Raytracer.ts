@@ -8,7 +8,9 @@ import {
   BLINN_PHONG,
   SolidColor,
   BlinnPhong,
-  MIRROR,
+  METAL,
+  Lambert,
+  Metal,
 } from '../materials/exports.js';
 import {Light} from '../lights/exports.js';
 
@@ -343,12 +345,12 @@ class Raytracer implements Renderer {
         let specular = [0, 0, 0];
         let shininess = 0;
 
-        if (
-          mesh.material.type === SOLID_COLOR ||
-          mesh.material.type === BLINN_PHONG ||
-          mesh.material.type === MIRROR
-        ) {
-          const coloredMaterial = mesh.material as SolidColor | BlinnPhong;
+        if (mesh.material.type < 5) {
+          const coloredMaterial = mesh.material as
+            | SolidColor
+            | BlinnPhong
+            | Lambert
+            | Metal;
 
           color = coloredMaterial.color;
         }
@@ -358,6 +360,12 @@ class Raytracer implements Renderer {
 
           specular = blinnPhongMaterial.specular;
           shininess = blinnPhongMaterial.shininess;
+        }
+
+        if (mesh.material.type === METAL) {
+          const metalMaterial = mesh.material as Metal;
+
+          shininess = metalMaterial.fuzziness;
         }
 
         materialData[materialDataOffset++] = color[0];

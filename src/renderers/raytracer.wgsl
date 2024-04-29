@@ -87,13 +87,13 @@ fn computeMain(@builtin(global_invocation_id) pixel: vec3u) {
             let material = materials[u32(closest_hit.materialIndex)];
 
             if hit {
-                if material.typeId == 1 {
+                if material.typeId == 1 { // Solid color
                     attenuation = vec3f(10) * material.color;
                     break;
-                } else if material.typeId == 4 {
+                } else if material.typeId == 4 { // Metal
                     attenuation *= material.color;
-                    ray = Ray(closest_hit.position, reflect(ray.direction, closest_hit.normal));
-                } else {
+                    ray = Ray(closest_hit.position, reflect(ray.direction, closest_hit.normal) + material.shininess * random_unit_vector(&seed));
+                } else { // Lambert
                     attenuation *= material.color;
                     ray = Ray(closest_hit.position, random_in_hemisphere(closest_hit.normal, &seed));
                 }

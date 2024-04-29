@@ -27,6 +27,10 @@ fn random_in_unit_sphere(state: ptr<function, u32>) -> vec3f {
     );
 }
 
+fn random_unit_vector(state: ptr<function, u32>) -> vec3f {
+    return normalize(random_in_unit_sphere(state));
+}
+
 fn random_in_hemisphere(normal: vec3f, state: ptr<function, u32>) -> vec3f {
     var v = random_in_unit_sphere(state);
 
