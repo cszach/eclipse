@@ -1,5 +1,6 @@
 import {
   Box,
+  Sphere,
   Mesh,
   PerspectiveCamera,
   Scene,

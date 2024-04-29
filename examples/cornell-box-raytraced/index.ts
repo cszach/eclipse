@@ -81,6 +81,8 @@ renderer.init().then(() => {
   );
   vec3.set(0, 0, 2, camera.localPosition);
 
+  new Sphere(5);
+
   scene.add(
     leftWall,
     rightWall,
