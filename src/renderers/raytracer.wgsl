@@ -63,7 +63,7 @@ fn computeMain(@builtin(global_invocation_id) pixel: vec3u) {
         return;
     }
 
-    const NUM_SAMPLES = 8u;
+    const NUM_SAMPLES = 12u;
     var seed = init_rng(pixel.xy, frame_dimensions, frame);
     var color = vec3f(0);
 
@@ -71,7 +71,7 @@ fn computeMain(@builtin(global_invocation_id) pixel: vec3u) {
         var ray = ray(pixel.xy, &seed);
         var attenuation = vec3f(1);
 
-        for (var bounce = 0u; bounce < 6u; bounce++) {
+        for (var bounce = 0u; bounce < 8u; bounce++) {
             var hit = false;
             var hit_record: HitRecord;
             var closest_hit: HitRecord;
@@ -88,9 +88,9 @@ fn computeMain(@builtin(global_invocation_id) pixel: vec3u) {
 
             if hit {
                 if material.typeId == 1 {
-                    attenuation = vec3f(10);
+                    attenuation = vec3f(10) * material.color;
                     break;
-                } else if material.typeId == 3 {
+                } else if material.typeId == 4 {
                     attenuation *= material.color;
                     ray = Ray(closest_hit.position, reflect(ray.direction, closest_hit.normal));
                 } else {
@@ -101,7 +101,6 @@ fn computeMain(@builtin(global_invocation_id) pixel: vec3u) {
                 let unit_direction = normalize(ray.direction);
                 let a = 0.5 * (unit_direction.y + 1.0);
                 let c = (1.0 - a) * vec3f(1) + a * vec3f(0.5, 0.7, 1.0);
-                // let c = vec3f(0);
 
                 attenuation = c * attenuation;
                 break;

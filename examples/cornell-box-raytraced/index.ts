@@ -1,6 +1,5 @@
 import {
   Box,
-  Sphere,
   Mesh,
   PerspectiveCamera,
   Scene,
@@ -80,8 +79,6 @@ renderer.init().then(() => {
     canvas.width / canvas.height
   );
   vec3.set(0, 0, 2, camera.localPosition);
-
-  new Sphere(5);
 
   scene.add(
     leftWall,
