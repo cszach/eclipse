@@ -178,6 +178,7 @@ class Raytracer implements Renderer {
 
     const canvasTexture = this.context.getCurrentTexture();
 
+    // @ts-ignore
     this.renderPassDescriptor.colorAttachments[0].view =
       canvasTexture.createView();
 
@@ -232,11 +233,11 @@ class Raytracer implements Renderer {
       entries: [
         {
           binding: 0,
-          resource: {buffer: this.resolutionBuffer},
+          resource: {buffer: this.resolutionBuffer as GPUBuffer},
         },
         {
           binding: 1,
-          resource: {buffer: this.frameBuffer},
+          resource: {buffer: this.frameBuffer as GPUBuffer},
         },
         {
           binding: 2,
@@ -252,15 +253,15 @@ class Raytracer implements Renderer {
         },
         {
           binding: 5,
-          resource: {buffer: this.vertexBuffer},
+          resource: {buffer: this.vertexBuffer as GPUBuffer},
         },
         {
           binding: 6,
-          resource: {buffer: this.indexBuffer},
+          resource: {buffer: this.indexBuffer as GPUBuffer},
         },
         {
           binding: 7,
-          resource: {buffer: this.materialBuffer},
+          resource: {buffer: this.materialBuffer as GPUBuffer},
         },
       ],
     });

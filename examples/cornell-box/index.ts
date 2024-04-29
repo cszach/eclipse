@@ -93,12 +93,7 @@ renderer.init().then(() => {
     lightMesh
   );
 
-  // Canvas resize
-  let i = 0;
-
   const resizeObserver = new ResizeObserver(entries => {
-    i = 0;
-
     entries.forEach(entry => {
       const canvas = entry.target as HTMLCanvasElement;
       const width = entry.contentBoxSize[0].inlineSize;
@@ -116,7 +111,7 @@ renderer.init().then(() => {
   // renderer.render(scene, camera, 20);
 
   function frame() {
-    renderer.render(scene, camera, i++);
+    renderer.render(scene, camera);
 
     window.requestAnimationFrame(frame);
   }

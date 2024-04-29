@@ -1,0 +1,30 @@
+import { Scene } from '../primitives/exports.js';
+import { PerspectiveCamera } from '../cameras/exports.js';
+import { Renderer } from './Renderer.js';
+declare class Rasterizer implements Renderer {
+    readonly canvas: HTMLCanvasElement;
+    private device?;
+    private context?;
+    private format?;
+    private depthTexture?;
+    private renderPassDescriptor?;
+    private bindGroupLayout?;
+    private bindGroup?;
+    private pipeline?;
+    private viewProjectionMatrixBuffer?;
+    private cameraPositionBuffer?;
+    private vertexBuffer?;
+    private indexBuffer?;
+    private materialBuffer?;
+    private lightBuffer?;
+    constructor(canvas?: HTMLCanvasElement);
+    init(): Promise<void>;
+    render(scene: Scene, camera: PerspectiveCamera): void;
+    private getSceneData;
+    private setCanvasFormatAndContext;
+    private setDepthTexture;
+    private setRenderPassDescriptor;
+    private setBindGroup;
+    private setPipeline;
+}
+export { Rasterizer };

@@ -78,6 +78,7 @@ class Rasterizer implements Renderer {
 
     const canvasTexture = this.context.getCurrentTexture();
 
+    // @ts-ignore
     this.renderPassDescriptor.colorAttachments[0].view =
       canvasTexture.createView();
 
@@ -93,6 +94,7 @@ class Rasterizer implements Renderer {
         usage: GPUTextureUsage.RENDER_ATTACHMENT,
       });
 
+      // @ts-ignore
       this.renderPassDescriptor.depthStencilAttachment.view =
         this.depthTexture.createView();
     }
@@ -174,7 +176,7 @@ class Rasterizer implements Renderer {
 
     this.bindGroup = this.device.createBindGroup({
       label: 'Rasterizer bind group',
-      layout: this.bindGroupLayout,
+      layout: this.bindGroupLayout as GPUBindGroupLayout,
       entries: [
         {
           binding: 0,
