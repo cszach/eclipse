@@ -33,6 +33,10 @@ class Raytracer implements Renderer {
   private computePipeline?: GPUComputePipeline;
   private renderPipeline?: GPURenderPipeline;
 
+  private vertexData?: Float32Array;
+  private indexData?: Uint32Array;
+  private materialData?: Float32Array;
+
   private frameBuffer?: GPUBuffer;
   private resolutionBuffer?: GPUBuffer;
   private frameNumberBuffer?: GPUBuffer;
@@ -177,37 +181,50 @@ class Raytracer implements Renderer {
     this.renderPassDescriptor.colorAttachments[0].view =
       canvasTexture.createView();
 
-    const {vertexData, indexData, materialData} = this.getSceneData(scene);
+    if (
+      !this.vertexData ||
+      !this.indexData ||
+      !this.materialData ||
+      scene.stats.outdated
+    ) {
+      const {vertexData, indexData, materialData} = this.getSceneData(scene);
 
-    if (this.vertexBuffer) this.vertexBuffer.destroy();
-    this.vertexBuffer = this.device.createBuffer({
-      label: 'Ray tracer vertex buffer',
-      size: vertexData.byteLength,
-      usage: GPUBufferUsage.STORAGE,
-      mappedAtCreation: true,
-    });
-    new Float32Array(this.vertexBuffer.getMappedRange()).set(vertexData);
-    this.vertexBuffer.unmap();
+      this.vertexData = vertexData;
+      this.indexData = indexData;
+      this.materialData = materialData;
 
-    if (this.indexBuffer) this.indexBuffer.destroy();
-    this.indexBuffer = this.device.createBuffer({
-      label: 'Ray tracer index buffer',
-      size: indexData.byteLength,
-      usage: GPUBufferUsage.STORAGE,
-      mappedAtCreation: true,
-    });
-    new Uint32Array(this.indexBuffer.getMappedRange()).set(indexData);
-    this.indexBuffer.unmap();
+      if (this.vertexBuffer) this.vertexBuffer.destroy();
+      this.vertexBuffer = this.device.createBuffer({
+        label: 'Ray tracer vertex buffer',
+        size: this.vertexData.byteLength,
+        usage: GPUBufferUsage.STORAGE,
+        mappedAtCreation: true,
+      });
+      new Float32Array(this.vertexBuffer.getMappedRange()).set(this.vertexData);
+      this.vertexBuffer.unmap();
 
-    if (this.materialBuffer) this.materialBuffer.destroy();
-    this.materialBuffer = this.device.createBuffer({
-      label: 'Ray tracer material buffer',
-      size: materialData.byteLength,
-      usage: GPUBufferUsage.STORAGE,
-      mappedAtCreation: true,
-    });
-    new Float32Array(this.materialBuffer.getMappedRange()).set(materialData);
-    this.materialBuffer.unmap();
+      if (this.indexBuffer) this.indexBuffer.destroy();
+      this.indexBuffer = this.device.createBuffer({
+        label: 'Ray tracer index buffer',
+        size: this.indexData.byteLength,
+        usage: GPUBufferUsage.STORAGE,
+        mappedAtCreation: true,
+      });
+      new Uint32Array(this.indexBuffer.getMappedRange()).set(this.indexData);
+      this.indexBuffer.unmap();
+
+      if (this.materialBuffer) this.materialBuffer.destroy();
+      this.materialBuffer = this.device.createBuffer({
+        label: 'Ray tracer material buffer',
+        size: this.materialData.byteLength,
+        usage: GPUBufferUsage.STORAGE,
+        mappedAtCreation: true,
+      });
+      new Float32Array(this.materialBuffer.getMappedRange()).set(
+        this.materialData
+      );
+      this.materialBuffer.unmap();
+    }
 
     this.bindGroup = this.device.createBindGroup({
       label: 'Ray tracer bind group',
@@ -307,7 +324,7 @@ class Raytracer implements Renderer {
 
   private getSceneData(scene: Scene): {
     vertexData: Float32Array;
-    indexData: Float32Array;
+    indexData: Uint32Array;
     materialData: Float32Array;
     lightData: Float32Array;
   } {
@@ -316,7 +333,7 @@ class Raytracer implements Renderer {
     }
 
     const vertexData = new Float32Array(scene.stats.vertices * 12);
-    const indexData = new Float32Array(scene.stats.triangles * 4);
+    const indexData = new Uint32Array(scene.stats.triangles * 4);
     const materialData = new Float32Array(scene.stats.meshes * 8);
     const lightData = new Float32Array(scene.stats.lights * 8);
 
