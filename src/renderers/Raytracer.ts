@@ -483,7 +483,7 @@ class Raytracer implements Renderer {
     const canvasTexture = this.context.getCurrentTexture();
 
     this.renderPassDescriptor = {
-      label: 'Rasterizer render pass descriptor',
+      label: 'Ray tracer render pass descriptor',
       colorAttachments: [
         {
           view: canvasTexture.createView(),
@@ -501,7 +501,7 @@ class Raytracer implements Renderer {
     }
 
     this.bindGroupLayout = this.device.createBindGroupLayout({
-      label: 'Rasterizer bind group layout',
+      label: 'Ray tracer bind group layout',
       entries: [
         {
           // Frame dimensions
@@ -599,7 +599,7 @@ class Raytracer implements Renderer {
     }
 
     this.pipelineLayout = this.device.createPipelineLayout({
-      label: 'Rasterizer pipeline layout',
+      label: 'Ray tracer pipeline layout',
       bindGroupLayouts: [this.bindGroupLayout],
     });
 
@@ -662,7 +662,7 @@ class Raytracer implements Renderer {
     });
 
     this.renderPipeline = this.device.createRenderPipeline({
-      label: 'Rasterizer pipeline',
+      label: 'Ray tracer pipeline',
       layout: this.pipelineLayout,
       vertex: {
         module: module,
