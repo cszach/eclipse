@@ -4,7 +4,6 @@ import {Renderer} from './Renderer.js';
 import {mat4, quat, vec3} from 'wgpu-matrix';
 import {UP} from '../constants.js';
 import {
-  SOLID_COLOR,
   BLINN_PHONG,
   SolidColor,
   BlinnPhong,
@@ -21,6 +20,11 @@ import frameBufferViewShader from './frame_buffer_view.wgsl';
 
 class Raytracer implements Renderer {
   readonly canvas: HTMLCanvasElement;
+  private frameCount = 0;
+  private _observeCanvasResize = true;
+  private canvasResizeObserver: ResizeObserver;
+
+  private initialized = false;
 
   // GPU stuff
   private device?: GPUDevice;
@@ -51,9 +55,45 @@ class Raytracer implements Renderer {
 
   constructor(canvas?: HTMLCanvasElement) {
     this.canvas = canvas ?? document.createElement('canvas');
+
+    this.canvasResizeObserver = new ResizeObserver(entries => {
+      this.frameCount = 0;
+
+      entries.forEach(entry => {
+        const canvas = entry.target as HTMLCanvasElement;
+        const width = entry.contentBoxSize[0].inlineSize;
+        const height = entry.contentBoxSize[0].blockSize;
+
+        canvas.width = width;
+        canvas.height = height;
+
+        this.updateCanvas();
+        // camera.aspectRatio = canvas.width / canvas.height;
+      });
+    });
+
+    this.observeCanvasResize = this._observeCanvasResize;
   }
 
-  async init(): Promise<void> {
+  get observeCanvasResize(): boolean {
+    return this._observeCanvasResize;
+  }
+
+  set observeCanvasResize(value: boolean) {
+    this._observeCanvasResize = value;
+
+    if (this._observeCanvasResize) {
+      this.canvasResizeObserver.observe(this.canvas);
+    } else {
+      this.canvasResizeObserver.unobserve(this.canvas);
+    }
+  }
+
+  async init() {
+    if (this.initialized) {
+      return;
+    }
+
     // Get WebGPU device
 
     if (!navigator.gpu) throw Error('WebGPU is not supported in this browser.');
@@ -63,7 +103,7 @@ class Raytracer implements Renderer {
 
     const device = await adapter.requestDevice({
       requiredLimits: {
-        maxStorageBufferBindingSize: 536870912, // 512 MB
+        maxStorageBufferBindingSize: 512 * 1024 * 1024, // 512 MB
       },
     });
     if (!device) throw Error('Could not request WebGPU logical device.');
@@ -101,9 +141,22 @@ class Raytracer implements Renderer {
     this.setComputePipeline();
     this.setRenderPipeline();
     this.updateCanvas();
+
+    this.initialized = true;
   }
 
-  render(scene: Scene, camera: PerspectiveCamera, frame = 0) {
+  setRenderLoop(newRenderLoop: () => void) {
+    const animationFrame = () => {
+      newRenderLoop();
+      window.requestAnimationFrame(animationFrame);
+    };
+
+    Promise.resolve(this.init()).then(() => {
+      window.requestAnimationFrame(animationFrame);
+    });
+  }
+
+  render(scene: Scene, camera: PerspectiveCamera) {
     if (
       !this.device ||
       !this.context ||
@@ -116,13 +169,17 @@ class Raytracer implements Renderer {
       !this.cameraPositionBuffer ||
       !this.viewportBuffer
     ) {
-      throw Error('Renderer has not been initiated. Call .init() first.');
+      throw new Error('Renderer has not been initiated. Call .init() first.');
+    }
+
+    if (this._observeCanvasResize) {
+      camera.aspectRatio = this.canvas.width / this.canvas.height;
     }
 
     this.device.queue.writeBuffer(
       this.frameNumberBuffer,
       0,
-      new Uint32Array([frame])
+      new Uint32Array([this.frameCount++])
     );
 
     this.device.queue.writeBuffer(
