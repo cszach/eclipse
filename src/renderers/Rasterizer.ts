@@ -6,9 +6,9 @@ import {Renderer} from './Renderer.js';
 import {vertexBufferLayout} from './constants.js';
 
 // Shaders
-import solidColorShader from '../materials/solid_color.wgsl';
-import blinnPhongShader from '../materials/blinn_phong.wgsl';
-import rasterizerShader from './rasterizer.wgsl';
+import solidColorShader from '../materials/shaders/solid_color.wgsl';
+import blinnPhongShader from '../materials/shaders/blinn_phong.wgsl';
+import rasterizerShader from './shaders/rasterizer.wgsl';
 
 // External
 import {vec3, mat4, quat} from 'wgpu-matrix';

@@ -14,9 +14,9 @@ import {
 import {Light} from '../lights/exports.js';
 
 // Shaders
-import randomShader from './random.wgsl';
-import raytracerShader from './raytracer.wgsl';
-import frameBufferViewShader from './frame_buffer_view.wgsl';
+import randomShader from './shaders/random.wgsl';
+import raytracerShader from './shaders/raytracer.wgsl';
+import frameBufferViewShader from './shaders/frame_buffer_view.wgsl';
 
 class Raytracer implements Renderer {
   readonly canvas: HTMLCanvasElement;
