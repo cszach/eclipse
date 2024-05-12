@@ -20,45 +20,42 @@ import frameBufferViewShader from './shaders/frame_buffer_view.wgsl';
 
 class Raytracer implements Renderer {
   readonly canvas: HTMLCanvasElement;
+
+  private initialized = false;
   private frameCount = 0;
   private _observeCanvasResize = true;
   private canvasResizeObserver: ResizeObserver;
-
-  private initialized = false;
+  private animationFrame?: () => void;
 
   // GPU stuff
   private device?: GPUDevice;
   private context?: GPUCanvasContext | null;
   private format?: GPUTextureFormat;
   private renderPassDescriptor?: GPURenderPassDescriptor;
+  private renderPassColorAttachment?: GPURenderPassColorAttachment;
   private bindGroupLayout?: GPUBindGroupLayout;
   private bindGroup?: GPUBindGroup;
   private pipelineLayout?: GPUPipelineLayout;
   private computePipeline?: GPUComputePipeline;
   private renderPipeline?: GPURenderPipeline;
 
-  private vertexData?: Float32Array;
-  private indexData?: Uint32Array;
-  private materialData?: Float32Array;
-
+  // Compute shader buffers
   private frameBuffer?: GPUBuffer;
   private resolutionBuffer?: GPUBuffer;
-  private frameNumberBuffer?: GPUBuffer;
+  private frameCountBuffer?: GPUBuffer;
   private cameraPositionBuffer?: GPUBuffer;
   private viewportBuffer?: GPUBuffer;
+  private materialBuffer?: GPUBuffer;
 
+  // Render shader buffers
   private frameBufferViewVertexBuffer?: GPUBuffer;
   private vertexBuffer?: GPUBuffer;
   private indexBuffer?: GPUBuffer;
-  private materialBuffer?: GPUBuffer;
-  private lightBuffer?: GPUBuffer;
 
   constructor(canvas?: HTMLCanvasElement) {
     this.canvas = canvas ?? document.createElement('canvas');
 
     this.canvasResizeObserver = new ResizeObserver(entries => {
-      this.frameCount = 0;
-
       entries.forEach(entry => {
         const canvas = entry.target as HTMLCanvasElement;
         const width = entry.contentBoxSize[0].inlineSize;
@@ -67,12 +64,17 @@ class Raytracer implements Renderer {
         canvas.width = width;
         canvas.height = height;
 
-        this.updateCanvas();
-        // camera.aspectRatio = canvas.width / canvas.height;
+        this.onCanvasResize();
       });
     });
 
-    this.observeCanvasResize = this._observeCanvasResize;
+    Promise.resolve(this.init()).then(() => {
+      this.observeCanvasResize = this._observeCanvasResize;
+
+      if (this.animationFrame) {
+        window.requestAnimationFrame(this.animationFrame);
+      }
+    });
   }
 
   get observeCanvasResize(): boolean {
@@ -89,7 +91,7 @@ class Raytracer implements Renderer {
     }
   }
 
-  async init() {
+  private async init(): Promise<void> {
     if (this.initialized) {
       return;
     }
@@ -108,41 +110,17 @@ class Raytracer implements Renderer {
     });
     if (!device) throw Error('Could not request WebGPU logical device.');
 
+    const {format, context} = this.setCanvasFormatAndContext(device);
+    const bindGroupLayout = this.setBindGroupLayout(device);
+    const pipelineLayout = this.setComputePipeline(device, bindGroupLayout);
+    this.setStaticBuffers(device);
+    this.setRenderPassDescriptor(context);
+    this.setVertexBuffer(device);
+    this.setRenderPipeline(device, format, pipelineLayout);
+
     this.device = device;
-
-    this.resolutionBuffer = this.device.createBuffer({
-      label: 'Ray tracer frame dimensions buffer',
-      size: 2 * Uint32Array.BYTES_PER_ELEMENT,
-      usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
-    });
-
-    this.frameNumberBuffer = this.device.createBuffer({
-      label: 'Ray tracer frame number buffer',
-      size: 4,
-      usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
-    });
-
-    this.cameraPositionBuffer = this.device.createBuffer({
-      label: 'Ray tracer camera position buffer',
-      size: 3 * Float32Array.BYTES_PER_ELEMENT,
-      usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
-    });
-
-    this.viewportBuffer = this.device.createBuffer({
-      label: 'Ray tracer viewport buffer',
-      size: (9 + 3) * Float32Array.BYTES_PER_ELEMENT,
-      usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
-    });
-
-    this.setCanvasFormatAndContext();
-    this.setRenderPassDescriptor();
-    this.setBindGroup();
-    this.setVertexBuffer();
-    this.setComputePipeline();
-    this.setRenderPipeline();
-    this.updateCanvas();
-
     this.initialized = true;
+    this.onCanvasResize(); // Create a new frame buffer
   }
 
   setRenderLoop(newRenderLoop: () => void) {
@@ -150,26 +128,30 @@ class Raytracer implements Renderer {
       newRenderLoop();
       window.requestAnimationFrame(animationFrame);
     };
+    this.animationFrame = animationFrame;
 
-    Promise.resolve(this.init()).then(() => {
+    if (this.initialized) {
       window.requestAnimationFrame(animationFrame);
-    });
+    }
   }
 
   render(scene: Scene, camera: PerspectiveCamera) {
     if (
-      !this.device ||
-      !this.context ||
-      !this.renderPassDescriptor ||
-      !this.computePipeline ||
-      !this.renderPipeline ||
-      !this.frameBufferViewVertexBuffer ||
       !this.bindGroupLayout ||
-      !this.frameNumberBuffer ||
       !this.cameraPositionBuffer ||
+      !this.computePipeline ||
+      !this.context ||
+      !this.device ||
+      !this.frameBuffer ||
+      !this.frameBufferViewVertexBuffer ||
+      !this.frameCountBuffer ||
+      !this.renderPassColorAttachment ||
+      !this.renderPassDescriptor ||
+      !this.renderPipeline ||
+      !this.resolutionBuffer ||
       !this.viewportBuffer
     ) {
-      throw new Error('Renderer has not been initiated. Call .init() first.');
+      throw new Error('Renderer has not been initialized properly.');
     }
 
     if (this._observeCanvasResize) {
@@ -177,7 +159,7 @@ class Raytracer implements Renderer {
     }
 
     this.device.queue.writeBuffer(
-      this.frameNumberBuffer,
+      this.frameCountBuffer,
       0,
       new Uint32Array([this.frameCount++])
     );
@@ -235,52 +217,44 @@ class Raytracer implements Renderer {
 
     const canvasTexture = this.context.getCurrentTexture();
 
-    // @ts-ignore
-    this.renderPassDescriptor.colorAttachments[0].view =
-      canvasTexture.createView();
+    this.renderPassColorAttachment.view = canvasTexture.createView();
 
     if (
-      !this.vertexData ||
-      !this.indexData ||
-      !this.materialData ||
+      !this.vertexBuffer ||
+      !this.indexBuffer ||
+      !this.materialBuffer ||
       scene.stats.outdated
     ) {
       const {vertexData, indexData, materialData} = this.getSceneData(scene);
 
-      this.vertexData = vertexData;
-      this.indexData = indexData;
-      this.materialData = materialData;
-
       if (this.vertexBuffer) this.vertexBuffer.destroy();
       this.vertexBuffer = this.device.createBuffer({
         label: 'Ray tracer vertex buffer',
-        size: this.vertexData.byteLength,
+        size: vertexData.byteLength,
         usage: GPUBufferUsage.STORAGE,
         mappedAtCreation: true,
       });
-      new Float32Array(this.vertexBuffer.getMappedRange()).set(this.vertexData);
+      new Float32Array(this.vertexBuffer.getMappedRange()).set(vertexData);
       this.vertexBuffer.unmap();
 
       if (this.indexBuffer) this.indexBuffer.destroy();
       this.indexBuffer = this.device.createBuffer({
         label: 'Ray tracer index buffer',
-        size: this.indexData.byteLength,
+        size: indexData.byteLength,
         usage: GPUBufferUsage.STORAGE,
         mappedAtCreation: true,
       });
-      new Uint32Array(this.indexBuffer.getMappedRange()).set(this.indexData);
+      new Uint32Array(this.indexBuffer.getMappedRange()).set(indexData);
       this.indexBuffer.unmap();
 
       if (this.materialBuffer) this.materialBuffer.destroy();
       this.materialBuffer = this.device.createBuffer({
         label: 'Ray tracer material buffer',
-        size: this.materialData.byteLength,
+        size: materialData.byteLength,
         usage: GPUBufferUsage.STORAGE,
         mappedAtCreation: true,
       });
-      new Float32Array(this.materialBuffer.getMappedRange()).set(
-        this.materialData
-      );
+      new Float32Array(this.materialBuffer.getMappedRange()).set(materialData);
       this.materialBuffer.unmap();
     }
 
@@ -290,15 +264,15 @@ class Raytracer implements Renderer {
       entries: [
         {
           binding: 0,
-          resource: {buffer: this.resolutionBuffer as GPUBuffer},
+          resource: {buffer: this.resolutionBuffer},
         },
         {
           binding: 1,
-          resource: {buffer: this.frameBuffer as GPUBuffer},
+          resource: {buffer: this.frameBuffer},
         },
         {
           binding: 2,
-          resource: {buffer: this.frameNumberBuffer},
+          resource: {buffer: this.frameCountBuffer},
         },
         {
           binding: 3,
@@ -310,15 +284,15 @@ class Raytracer implements Renderer {
         },
         {
           binding: 5,
-          resource: {buffer: this.vertexBuffer as GPUBuffer},
+          resource: {buffer: this.vertexBuffer},
         },
         {
           binding: 6,
-          resource: {buffer: this.indexBuffer as GPUBuffer},
+          resource: {buffer: this.indexBuffer},
         },
         {
           binding: 7,
-          resource: {buffer: this.materialBuffer as GPUBuffer},
+          resource: {buffer: this.materialBuffer},
         },
       ],
     });
@@ -349,13 +323,13 @@ class Raytracer implements Renderer {
     this.device.queue.submit([encoder.finish()]);
   }
 
-  updateCanvas() {
+  onCanvasResize() {
     if (!this.device) {
       throw new Error('GPU device has not been set.');
     }
 
     if (!this.resolutionBuffer) {
-      throw new Error('Frame dimensions buffer has not been created.');
+      throw new Error('Resolution buffer has not been created.');
     }
 
     if (this.frameBuffer) {
@@ -365,19 +339,21 @@ class Raytracer implements Renderer {
     this.frameBuffer = this.device.createBuffer({
       label: 'Ray tracer frame buffer',
       size:
-        4 *
+        4 * // RGBA
         Float32Array.BYTES_PER_ELEMENT *
         this.canvas.width *
         this.canvas.height,
       usage: GPUBufferUsage.STORAGE,
     });
 
-    // Update the frame dimensions buffer
+    // Update the resolution buffer
     this.device.queue.writeBuffer(
       this.resolutionBuffer,
       0,
       new Uint32Array([this.canvas.width, this.canvas.height])
     );
+
+    this.frameCount = 0;
   }
 
   private getSceneData(scene: Scene): {
@@ -511,11 +487,36 @@ class Raytracer implements Renderer {
     return {vertexData, indexData, materialData, lightData};
   }
 
-  private setCanvasFormatAndContext() {
-    if (!this.device) {
-      throw new Error('GPU device has not been set.');
-    }
+  private setStaticBuffers(device: GPUDevice) {
+    this.resolutionBuffer = device.createBuffer({
+      label: 'Ray tracer frame dimensions buffer',
+      size: 2 * Uint32Array.BYTES_PER_ELEMENT,
+      usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+    });
 
+    this.frameCountBuffer = device.createBuffer({
+      label: 'Ray tracer frame count buffer',
+      size: 4,
+      usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+    });
+
+    this.cameraPositionBuffer = device.createBuffer({
+      label: 'Ray tracer camera position buffer',
+      size: 3 * Float32Array.BYTES_PER_ELEMENT,
+      usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+    });
+
+    this.viewportBuffer = device.createBuffer({
+      label: 'Ray tracer viewport buffer',
+      size: (9 + 3) * Float32Array.BYTES_PER_ELEMENT,
+      usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+    });
+  }
+
+  private setCanvasFormatAndContext(device: GPUDevice): {
+    format: GPUTextureFormat;
+    context: GPUCanvasContext;
+  } {
     this.context = this.canvas.getContext('webgpu');
 
     if (!this.context) {
@@ -523,41 +524,32 @@ class Raytracer implements Renderer {
     }
 
     this.format = navigator.gpu.getPreferredCanvasFormat();
-    this.context.configure({device: this.device, format: this.format});
-  }
+    this.context.configure({device, format: this.format});
 
-  private setRenderPassDescriptor() {
-    if (!this.device) {
-      throw new Error('GPU device has not been set.');
-    }
-
-    if (!this.context) {
-      throw new Error(
-        'Canvas context has not been set. Call .setCanvasFormatAndContext() first.'
-      );
-    }
-
-    const canvasTexture = this.context.getCurrentTexture();
-
-    this.renderPassDescriptor = {
-      label: 'Ray tracer render pass descriptor',
-      colorAttachments: [
-        {
-          view: canvasTexture.createView(),
-          loadOp: 'clear',
-          clearValue: [0, 0, 0, 1],
-          storeOp: 'store',
-        },
-      ],
+    return {
+      format: this.format,
+      context: this.context,
     };
   }
 
-  private setBindGroup() {
-    if (!this.device) {
-      throw new Error('GPU device has not been set.');
-    }
+  private setRenderPassDescriptor(context: GPUCanvasContext) {
+    const canvasTexture = context.getCurrentTexture();
 
-    this.bindGroupLayout = this.device.createBindGroupLayout({
+    this.renderPassColorAttachment = {
+      view: canvasTexture.createView(),
+      loadOp: 'clear',
+      clearValue: [0, 0, 0, 1],
+      storeOp: 'store',
+    };
+
+    this.renderPassDescriptor = {
+      label: 'Ray tracer render pass descriptor',
+      colorAttachments: [this.renderPassColorAttachment],
+    };
+  }
+
+  private setBindGroupLayout(device: GPUDevice): GPUBindGroupLayout {
+    this.bindGroupLayout = device.createBindGroupLayout({
       label: 'Ray tracer bind group layout',
       entries: [
         {
@@ -610,13 +602,11 @@ class Raytracer implements Renderer {
         },
       ],
     });
+
+    return this.bindGroupLayout;
   }
 
-  private setVertexBuffer() {
-    if (!this.device) {
-      throw new Error('GPU device has not been set.');
-    }
-
+  private setVertexBuffer(device: GPUDevice) {
     // v0-------v1          Y        (0, 0)---> U
     //  |        |          ^             |
     //  |        |          |             v
@@ -632,7 +622,7 @@ class Raytracer implements Renderer {
        1,  1, 1, 0, // v1
     ]);
 
-    this.frameBufferViewVertexBuffer = this.device.createBuffer({
+    this.frameBufferViewVertexBuffer = device.createBuffer({
       label: 'Ray tracer vertex buffer',
       size: vertexData.byteLength,
       usage: GPUBufferUsage.VERTEX,
@@ -644,58 +634,35 @@ class Raytracer implements Renderer {
     this.frameBufferViewVertexBuffer.unmap();
   }
 
-  private setComputePipeline() {
-    if (!this.device) {
-      throw new Error('GPU device has not been set.');
-    }
-
-    if (!this.bindGroupLayout) {
-      throw new Error(
-        'Bind group layout has not been set. Call .setBindGroup() first.'
-      );
-    }
-
-    this.pipelineLayout = this.device.createPipelineLayout({
+  private setComputePipeline(
+    device: GPUDevice,
+    bindGroupLayout: GPUBindGroupLayout
+  ): GPUPipelineLayout {
+    this.pipelineLayout = device.createPipelineLayout({
       label: 'Ray tracer pipeline layout',
-      bindGroupLayouts: [this.bindGroupLayout],
+      bindGroupLayouts: [bindGroupLayout],
     });
 
-    this.computePipeline = this.device.createComputePipeline({
+    this.computePipeline = device.createComputePipeline({
       label: 'Ray tracer compute pipeline',
       layout: this.pipelineLayout,
       compute: {
-        module: this.device.createShaderModule({
+        module: device.createShaderModule({
           label: 'Ray tracer shader module',
           code: randomShader + raytracerShader,
         }),
         entryPoint: 'computeMain',
       },
     });
+
+    return this.pipelineLayout;
   }
 
-  private setRenderPipeline() {
-    if (!this.device) {
-      throw new Error('GPU device has not been set.');
-    }
-
-    if (!this.format) {
-      throw new Error(
-        'Canvas format has not been set. Call .setCanvasFormatAndContext() first.'
-      );
-    }
-
-    if (!this.bindGroupLayout) {
-      throw new Error(
-        'Bind group layout has not been set. Call .setBindGroup() first.'
-      );
-    }
-
-    if (!this.pipelineLayout) {
-      throw new Error(
-        'Pipeline layout has not been set. Call .setComputePipeline() first.'
-      );
-    }
-
+  private setRenderPipeline(
+    device: GPUDevice,
+    format: GPUTextureFormat,
+    pipelineLayout: GPUPipelineLayout
+  ) {
     const vertexBufferLayout: GPUVertexBufferLayout = {
       arrayStride: 4 * 4,
       attributes: [
@@ -714,13 +681,13 @@ class Raytracer implements Renderer {
       ],
     };
 
-    const module = this.device.createShaderModule({
+    const module = device.createShaderModule({
       code: frameBufferViewShader,
     });
 
-    this.renderPipeline = this.device.createRenderPipeline({
+    this.renderPipeline = device.createRenderPipeline({
       label: 'Ray tracer pipeline',
-      layout: this.pipelineLayout,
+      layout: pipelineLayout,
       vertex: {
         module: module,
         entryPoint: 'vertexMain',
@@ -731,7 +698,7 @@ class Raytracer implements Renderer {
         entryPoint: 'fragmentMain',
         targets: [
           {
-            format: this.format,
+            format: format,
           },
         ],
       },
