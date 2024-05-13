@@ -35,8 +35,6 @@ class Raytracer implements Renderer {
   private device?: GPUDevice;
   private context?: GPUCanvasContext | null;
   private format?: GPUTextureFormat;
-  private renderPassDescriptor?: GPURenderPassDescriptor;
-  private renderPassColorAttachment?: GPURenderPassColorAttachment;
   private bindGroupLayout?: GPUBindGroupLayout;
   private renderPipeline?: GPURenderPipeline;
 
@@ -121,7 +119,6 @@ class Raytracer implements Renderer {
 
     this.setSteps(device);
     this.setStaticBuffers(device);
-    this.setRenderPassDescriptor(context);
     this.setVertexBuffer(device);
     this.setRenderPipeline(
       device,
@@ -158,8 +155,6 @@ class Raytracer implements Renderer {
       !this.frameBuffer ||
       !this.frameBufferViewVertexBuffer ||
       !this.frameCountBuffer ||
-      !this.renderPassColorAttachment ||
-      !this.renderPassDescriptor ||
       !this.renderPipeline ||
       !this.rayTracingStep ||
       !this.resolutionBuffer ||
@@ -230,8 +225,6 @@ class Raytracer implements Renderer {
     this.device.queue.writeBuffer(this.viewportBuffer, 0, viewportData);
 
     const canvasTexture = this.context.getCurrentTexture();
-
-    this.renderPassColorAttachment.view = canvasTexture.createView();
 
     if (
       !this.vertexBuffer ||
@@ -323,7 +316,17 @@ class Raytracer implements Renderer {
 
     this.rayTracingStep.run(encoder, [rayTracingBindGroup]);
 
-    const renderPass = encoder.beginRenderPass(this.renderPassDescriptor);
+    const renderPass = encoder.beginRenderPass({
+      label: 'Ray tracer render pass descriptor',
+      colorAttachments: [
+        {
+          view: canvasTexture.createView(),
+          loadOp: 'clear',
+          clearValue: [0, 0, 0, 1],
+          storeOp: 'store',
+        },
+      ],
+    });
 
     renderPass.setPipeline(this.renderPipeline);
     renderPass.setVertexBuffer(0, this.frameBufferViewVertexBuffer);
@@ -563,22 +566,6 @@ class Raytracer implements Renderer {
     return {
       format: this.format,
       context: this.context,
-    };
-  }
-
-  private setRenderPassDescriptor(context: GPUCanvasContext) {
-    const canvasTexture = context.getCurrentTexture();
-
-    this.renderPassColorAttachment = {
-      view: canvasTexture.createView(),
-      loadOp: 'clear',
-      clearValue: [0, 0, 0, 1],
-      storeOp: 'store',
-    };
-
-    this.renderPassDescriptor = {
-      label: 'Ray tracer render pass descriptor',
-      colorAttachments: [this.renderPassColorAttachment],
     };
   }
 
