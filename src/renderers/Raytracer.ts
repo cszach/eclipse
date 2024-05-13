@@ -1,7 +1,7 @@
 import {PerspectiveCamera} from '../cameras/exports.js';
 import {Mesh, Scene} from '../primitives/exports.js';
 import {Renderer} from './Renderer.js';
-import {mat4, quat, vec3} from 'wgpu-matrix';
+import {mat4, quat, vec3, Vec3} from 'wgpu-matrix';
 import {UP} from '../constants.js';
 import {
   BLINN_PHONG,
@@ -33,9 +33,8 @@ class Raytracer implements Renderer {
 
   // GPU stuff
   private device?: GPUDevice;
-  private context?: GPUCanvasContext | null;
+  private context?: GPUCanvasContext;
   private format?: GPUTextureFormat;
-  private bindGroupLayout?: GPUBindGroupLayout;
   private renderPipeline?: GPURenderPipeline;
 
   // Compute shader buffers
@@ -114,8 +113,7 @@ class Raytracer implements Renderer {
     });
     if (!device) throw Error('Could not request WebGPU logical device.');
 
-    const {format, context} = this.setCanvasFormatAndContext(device);
-    const bindGroupLayout = this.setBindGroupLayout(device);
+    const {format} = this.setCanvasFormatAndContext(device);
 
     this.setSteps(device);
     this.setStaticBuffers(device);
@@ -125,7 +123,11 @@ class Raytracer implements Renderer {
       format,
       device.createPipelineLayout({
         label: 'Ray tracer render pipeline layout',
-        bindGroupLayouts: [bindGroupLayout],
+        bindGroupLayouts: [
+          device.createBindGroupLayout({
+            entries: rayTracingBindGroupLayoutEntries,
+          }),
+        ],
       })
     );
 
@@ -148,7 +150,6 @@ class Raytracer implements Renderer {
 
   render(scene: Scene, camera: PerspectiveCamera) {
     if (
-      !this.bindGroupLayout ||
       !this.cameraPositionBuffer ||
       !this.context ||
       !this.device ||
@@ -179,43 +180,13 @@ class Raytracer implements Renderer {
       camera.localPosition // TODO: consider global position
     );
 
-    // Calculate viewport data
+    // Get viewport data and write into the viewport buffer
 
-    const lookAt = [0, 0, 0];
-    const focalLength = vec3.length(
-      vec3.subtract(camera.localPosition, lookAt)
-    );
-    const h = Math.tan(camera.verticalFovRadians / 2);
-    const viewportHeight = 2 * h * focalLength;
-    const viewportWidth = viewportHeight * camera.aspectRatio;
-
-    // Opposite of camera direction
-    const w = vec3.normalize(vec3.subtract(camera.localPosition, lookAt));
-    const u = vec3.normalize(vec3.cross(UP, w)); // Local right
-    const v = vec3.cross(w, u); // Local up
-
-    const viewportU = vec3.mulScalar(u, viewportWidth);
-    const viewportV = vec3.mulScalar(vec3.negate(v), viewportHeight);
-
-    const viewportDu = vec3.divScalar(viewportU, this.canvas.width);
-    const viewportDv = vec3.divScalar(viewportV, this.canvas.height);
-
-    const halfViewportU = vec3.divScalar(viewportU, 2);
-    const halfViewportV = vec3.divScalar(viewportV, 2);
-
-    // viewportUpperLeft = cameraPos - (w * focalLength) - U / 2 - V / 2
-    const viewportUpperLeft = vec3.sub(
-      vec3.sub(
-        vec3.sub(camera.localPosition, vec3.mulScalar(w, focalLength)),
-        halfViewportU
-      ),
-      halfViewportV
-    );
-
-    const pixelDuv = vec3.add(viewportDu, viewportDv);
-    const halfPixelDuv = vec3.mulScalar(pixelDuv, 0.5);
-    const viewportOrigin = vec3.add(viewportUpperLeft, halfPixelDuv);
-
+    const {
+      origin: viewportOrigin,
+      du: viewportDu,
+      dv: viewportDv,
+    } = this.getViewportData(camera);
     const viewportData = new Float32Array(9 + 3);
 
     viewportData.set(viewportOrigin, 0);
@@ -224,7 +195,7 @@ class Raytracer implements Renderer {
 
     this.device.queue.writeBuffer(this.viewportBuffer, 0, viewportData);
 
-    const canvasTexture = this.context.getCurrentTexture();
+    // Get scene data and write into buffers
 
     if (
       !this.vertexBuffer ||
@@ -273,9 +244,11 @@ class Raytracer implements Renderer {
       });
     }
 
+    // Begin ray tracing process
+
     const rayTracingBindGroup = this.device.createBindGroup({
-      label: 'Ray tracer bind group',
-      layout: this.bindGroupLayout,
+      label: 'Ray tracing bind group',
+      layout: this.rayTracingStep.bindGroupLayouts[0],
       entries: [
         {
           binding: 0,
@@ -320,7 +293,7 @@ class Raytracer implements Renderer {
       label: 'Ray tracer render pass descriptor',
       colorAttachments: [
         {
-          view: canvasTexture.createView(),
+          view: this.context.getCurrentTexture().createView(),
           loadOp: 'clear',
           clearValue: [0, 0, 0, 1],
           storeOp: 'store',
@@ -510,11 +483,59 @@ class Raytracer implements Renderer {
     return {vertexData, indexData, materialData, lightData};
   }
 
+  private getViewportData(camera: PerspectiveCamera): {
+    origin: Vec3;
+    du: Vec3;
+    dv: Vec3;
+  } {
+    const lookAt = [0, 0, 0];
+    const focalLength = vec3.length(
+      vec3.subtract(camera.localPosition, lookAt)
+    );
+    const h = Math.tan(camera.verticalFovRadians / 2);
+    const viewportHeight = 2 * h * focalLength;
+    const viewportWidth = viewportHeight * camera.aspectRatio;
+
+    // Opposite of camera direction
+    const w = vec3.normalize(vec3.subtract(camera.localPosition, lookAt));
+    const u = vec3.normalize(vec3.cross(UP, w)); // Local right
+    const v = vec3.cross(w, u); // Local up
+
+    const viewportU = vec3.mulScalar(u, viewportWidth);
+    const viewportV = vec3.mulScalar(vec3.negate(v), viewportHeight);
+
+    const viewportDu = vec3.divScalar(viewportU, this.canvas.width);
+    const viewportDv = vec3.divScalar(viewportV, this.canvas.height);
+
+    const halfViewportU = vec3.divScalar(viewportU, 2);
+    const halfViewportV = vec3.divScalar(viewportV, 2);
+
+    // viewportUpperLeft = cameraPos - (w * focalLength) - U / 2 - V / 2
+    const viewportUpperLeft = vec3.sub(
+      vec3.sub(
+        vec3.sub(camera.localPosition, vec3.mulScalar(w, focalLength)),
+        halfViewportU
+      ),
+      halfViewportV
+    );
+
+    const pixelDuv = vec3.add(viewportDu, viewportDv);
+    const halfPixelDuv = vec3.mulScalar(pixelDuv, 0.5);
+    const viewportOrigin = vec3.add(viewportUpperLeft, halfPixelDuv);
+
+    return {origin: viewportOrigin, du: viewportDu, dv: viewportDv};
+  }
+
   private setSteps(device: GPUDevice) {
     this.rayTracingStep = new ComputeStep(
       'Ray tracing',
       device,
-      [rayTracingBindGroupLayoutEntries],
+      [
+        {
+          label: 'Ray tracing bind group layout',
+          entries: rayTracingBindGroupLayoutEntries,
+        },
+      ],
       primitives + random + raytracerShader,
       'ray_trace',
       {
@@ -554,12 +575,13 @@ class Raytracer implements Renderer {
     format: GPUTextureFormat;
     context: GPUCanvasContext;
   } {
-    this.context = this.canvas.getContext('webgpu');
+    const context = this.canvas.getContext('webgpu');
 
-    if (!this.context) {
+    if (!context) {
       throw new Error('WebGPU context not found.');
     }
 
+    this.context = context;
     this.format = navigator.gpu.getPreferredCanvasFormat();
     this.context.configure({device, format: this.format});
 
@@ -567,15 +589,6 @@ class Raytracer implements Renderer {
       format: this.format,
       context: this.context,
     };
-  }
-
-  private setBindGroupLayout(device: GPUDevice): GPUBindGroupLayout {
-    this.bindGroupLayout = device.createBindGroupLayout({
-      label: 'Ray tracer bind group layout',
-      entries: rayTracingBindGroupLayoutEntries,
-    });
-
-    return this.bindGroupLayout;
   }
 
   private setVertexBuffer(device: GPUDevice) {

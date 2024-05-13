@@ -1,31 +1,28 @@
 class ComputeStep {
   readonly device: GPUDevice;
+  readonly bindGroupLayouts: GPUBindGroupLayout[];
   readonly pipeline: GPUComputePipeline;
   workgroupCount: {x: number; y?: number; z?: number};
 
   constructor(
     label: string,
     device: GPUDevice,
-    bindGroupLayoutsEntries: Iterable<Iterable<GPUBindGroupLayoutEntry>>,
+    bindGroupLayoutDescriptors: Iterable<GPUBindGroupLayoutDescriptor>,
     code: string,
     entryPoint: string,
     workgroupCount: {x: number; y?: number; z?: number}
   ) {
     this.device = device;
 
-    const bindGroupLayouts: GPUBindGroupLayout[] = [];
+    this.bindGroupLayouts = [];
 
-    for (const entries of bindGroupLayoutsEntries) {
-      bindGroupLayouts.push(
-        device.createBindGroupLayout({
-          entries,
-        })
-      );
+    for (const descriptor of bindGroupLayoutDescriptors) {
+      this.bindGroupLayouts.push(device.createBindGroupLayout(descriptor));
     }
 
     const layout = device.createPipelineLayout({
       label: `${label} pipeline layout`,
-      bindGroupLayouts,
+      bindGroupLayouts: this.bindGroupLayouts,
     });
 
     this.pipeline = this.device.createComputePipeline({
