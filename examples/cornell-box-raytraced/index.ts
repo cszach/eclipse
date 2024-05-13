@@ -10,6 +10,7 @@ import {
   Plane,
   Metal,
   Lambert,
+  Sphere,
 } from '../../src/index.js';
 import {quat, vec3} from 'wgpu-matrix';
 import Stats from 'stats.js';
@@ -53,9 +54,13 @@ const tallBox = new Mesh(box, new Metal(white, 0));
 vec3.set(-0.25, -0.2, -0.25, tallBox.localPosition);
 vec3.set(1, 2, 1, tallBox.localScale);
 quat.fromEuler(0, Math.PI / 10, 0, 'xyz', tallBox.localQuaternion);
+
 const shortBox = new Mesh(box, new Lambert(white));
 vec3.set(0.2, -0.35, 0.25, shortBox.localPosition);
 quat.fromEuler(0, -Math.PI / 10, 0, 'xyz', shortBox.localQuaternion);
+
+const sphere = new Mesh(new Sphere(0.15), new Lambert(white));
+vec3.set(0.2, -0.35, 0.25, sphere.localPosition);
 
 const ambient = new AmbientLight([1, 1, 1]);
 const light = new PointLight();
@@ -76,6 +81,7 @@ scene.add(
   ceiling,
   tallBox,
   shortBox,
+  // sphere,
   ambient,
   light,
   lightMesh

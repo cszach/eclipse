@@ -12,11 +12,15 @@ import {
   Metal,
 } from '../materials/exports.js';
 import {Light} from '../lights/exports.js';
+import {ComputeStep} from './utils/ComputeStep.js';
 
 // Shaders
-import randomShader from './shaders/random.wgsl';
+import primitives from './shaders/primitives.wgsl';
+import random from './shaders/random.wgsl';
+import lbvh from './shaders/lbvh.wgsl';
 import raytracerShader from './shaders/raytracer.wgsl';
 import frameBufferViewShader from './shaders/frame_buffer_view.wgsl';
+import {rayTracingBindGroupLayoutEntries} from './constants.js';
 
 class Raytracer implements Renderer {
   readonly canvas: HTMLCanvasElement;
@@ -34,9 +38,6 @@ class Raytracer implements Renderer {
   private renderPassDescriptor?: GPURenderPassDescriptor;
   private renderPassColorAttachment?: GPURenderPassColorAttachment;
   private bindGroupLayout?: GPUBindGroupLayout;
-  private bindGroup?: GPUBindGroup;
-  private pipelineLayout?: GPUPipelineLayout;
-  private computePipeline?: GPUComputePipeline;
   private renderPipeline?: GPURenderPipeline;
 
   // Compute shader buffers
@@ -46,11 +47,15 @@ class Raytracer implements Renderer {
   private cameraPositionBuffer?: GPUBuffer;
   private viewportBuffer?: GPUBuffer;
   private materialBuffer?: GPUBuffer;
+  private mortonCodesBuffer?: GPUBuffer;
 
   // Render shader buffers
   private frameBufferViewVertexBuffer?: GPUBuffer;
   private vertexBuffer?: GPUBuffer;
   private indexBuffer?: GPUBuffer;
+
+  // Steps
+  private rayTracingStep?: ComputeStep;
 
   constructor(canvas?: HTMLCanvasElement) {
     this.canvas = canvas ?? document.createElement('canvas');
@@ -93,6 +98,7 @@ class Raytracer implements Renderer {
 
   private async init(): Promise<void> {
     if (this.initialized) {
+      console.warn('Renderer is already initiated.');
       return;
     }
 
@@ -112,11 +118,19 @@ class Raytracer implements Renderer {
 
     const {format, context} = this.setCanvasFormatAndContext(device);
     const bindGroupLayout = this.setBindGroupLayout(device);
-    const pipelineLayout = this.setComputePipeline(device, bindGroupLayout);
+
+    this.setSteps(device);
     this.setStaticBuffers(device);
     this.setRenderPassDescriptor(context);
     this.setVertexBuffer(device);
-    this.setRenderPipeline(device, format, pipelineLayout);
+    this.setRenderPipeline(
+      device,
+      format,
+      device.createPipelineLayout({
+        label: 'Ray tracer render pipeline layout',
+        bindGroupLayouts: [bindGroupLayout],
+      })
+    );
 
     this.device = device;
     this.initialized = true;
@@ -139,7 +153,6 @@ class Raytracer implements Renderer {
     if (
       !this.bindGroupLayout ||
       !this.cameraPositionBuffer ||
-      !this.computePipeline ||
       !this.context ||
       !this.device ||
       !this.frameBuffer ||
@@ -148,6 +161,7 @@ class Raytracer implements Renderer {
       !this.renderPassColorAttachment ||
       !this.renderPassDescriptor ||
       !this.renderPipeline ||
+      !this.rayTracingStep ||
       !this.resolutionBuffer ||
       !this.viewportBuffer
     ) {
@@ -223,6 +237,7 @@ class Raytracer implements Renderer {
       !this.vertexBuffer ||
       !this.indexBuffer ||
       !this.materialBuffer ||
+      !this.mortonCodesBuffer ||
       scene.stats.outdated
     ) {
       const {vertexData, indexData, materialData} = this.getSceneData(scene);
@@ -256,9 +271,16 @@ class Raytracer implements Renderer {
       });
       new Float32Array(this.materialBuffer.getMappedRange()).set(materialData);
       this.materialBuffer.unmap();
+
+      if (this.mortonCodesBuffer) this.mortonCodesBuffer.destroy();
+      this.mortonCodesBuffer = this.device.createBuffer({
+        label: 'Ray tracer morton codes buffer',
+        size: scene.stats.triangles * Uint32Array.BYTES_PER_ELEMENT,
+        usage: GPUBufferUsage.STORAGE,
+      });
     }
 
-    this.bindGroup = this.device.createBindGroup({
+    const rayTracingBindGroup = this.device.createBindGroup({
       label: 'Ray tracer bind group',
       layout: this.bindGroupLayout,
       entries: [
@@ -299,23 +321,13 @@ class Raytracer implements Renderer {
 
     const encoder = this.device.createCommandEncoder();
 
-    const computePass = encoder.beginComputePass();
-
-    computePass.setPipeline(this.computePipeline);
-    computePass.setBindGroup(0, this.bindGroup);
-
-    const workgroupCountX = Math.ceil(this.canvas.width / 8);
-    const workgroupCountY = Math.ceil(this.canvas.height / 8);
-
-    computePass.dispatchWorkgroups(workgroupCountX, workgroupCountY);
-
-    computePass.end();
+    this.rayTracingStep.run(encoder, [rayTracingBindGroup]);
 
     const renderPass = encoder.beginRenderPass(this.renderPassDescriptor);
 
     renderPass.setPipeline(this.renderPipeline);
     renderPass.setVertexBuffer(0, this.frameBufferViewVertexBuffer);
-    renderPass.setBindGroup(0, this.bindGroup);
+    renderPass.setBindGroup(0, rayTracingBindGroup);
 
     renderPass.draw(6);
     renderPass.end();
@@ -330,6 +342,10 @@ class Raytracer implements Renderer {
 
     if (!this.resolutionBuffer) {
       throw new Error('Resolution buffer has not been created.');
+    }
+
+    if (!this.rayTracingStep) {
+      throw new Error('Ray tracing step has not been created');
     }
 
     if (this.frameBuffer) {
@@ -354,6 +370,10 @@ class Raytracer implements Renderer {
     );
 
     this.frameCount = 0;
+
+    // Update ray tracing step's workgroup count
+    this.rayTracingStep.workgroupCount.x = Math.ceil(this.canvas.width / 8);
+    this.rayTracingStep.workgroupCount.y = Math.ceil(this.canvas.height / 8);
   }
 
   private getSceneData(scene: Scene): {
@@ -487,6 +507,20 @@ class Raytracer implements Renderer {
     return {vertexData, indexData, materialData, lightData};
   }
 
+  private setSteps(device: GPUDevice) {
+    this.rayTracingStep = new ComputeStep(
+      'Ray tracing',
+      device,
+      [rayTracingBindGroupLayoutEntries],
+      primitives + random + raytracerShader,
+      'ray_trace',
+      {
+        x: Math.ceil(this.canvas.width / 8),
+        y: Math.ceil(this.canvas.height / 8),
+      }
+    );
+  }
+
   private setStaticBuffers(device: GPUDevice) {
     this.resolutionBuffer = device.createBuffer({
       label: 'Ray tracer frame dimensions buffer',
@@ -551,56 +585,7 @@ class Raytracer implements Renderer {
   private setBindGroupLayout(device: GPUDevice): GPUBindGroupLayout {
     this.bindGroupLayout = device.createBindGroupLayout({
       label: 'Ray tracer bind group layout',
-      entries: [
-        {
-          // Frame dimensions
-          binding: 0,
-          visibility: GPUShaderStage.COMPUTE | GPUShaderStage.FRAGMENT,
-          buffer: {type: 'uniform'},
-        },
-        {
-          // Frame buffer
-          binding: 1,
-          visibility: GPUShaderStage.COMPUTE | GPUShaderStage.FRAGMENT,
-          buffer: {type: 'storage'},
-        },
-        {
-          // Frame
-          binding: 2,
-          visibility: GPUShaderStage.COMPUTE | GPUShaderStage.FRAGMENT,
-          buffer: {type: 'uniform'},
-        },
-        {
-          // Camera position
-          binding: 3,
-          visibility: GPUShaderStage.COMPUTE,
-          buffer: {type: 'uniform'},
-        },
-        {
-          // Viewport
-          binding: 4,
-          visibility: GPUShaderStage.COMPUTE,
-          buffer: {type: 'uniform'},
-        },
-        {
-          // Vertices
-          binding: 5,
-          visibility: GPUShaderStage.COMPUTE,
-          buffer: {type: 'read-only-storage'},
-        },
-        {
-          // Faces
-          binding: 6,
-          visibility: GPUShaderStage.COMPUTE,
-          buffer: {type: 'read-only-storage'},
-        },
-        {
-          // Materials
-          binding: 7,
-          visibility: GPUShaderStage.COMPUTE,
-          buffer: {type: 'read-only-storage'},
-        },
-      ],
+      entries: rayTracingBindGroupLayoutEntries,
     });
 
     return this.bindGroupLayout;
@@ -632,30 +617,6 @@ class Raytracer implements Renderer {
       vertexData
     );
     this.frameBufferViewVertexBuffer.unmap();
-  }
-
-  private setComputePipeline(
-    device: GPUDevice,
-    bindGroupLayout: GPUBindGroupLayout
-  ): GPUPipelineLayout {
-    this.pipelineLayout = device.createPipelineLayout({
-      label: 'Ray tracer pipeline layout',
-      bindGroupLayouts: [bindGroupLayout],
-    });
-
-    this.computePipeline = device.createComputePipeline({
-      label: 'Ray tracer compute pipeline',
-      layout: this.pipelineLayout,
-      compute: {
-        module: device.createShaderModule({
-          label: 'Ray tracer shader module',
-          code: randomShader + raytracerShader,
-        }),
-        entryPoint: 'computeMain',
-      },
-    });
-
-    return this.pipelineLayout;
   }
 
   private setRenderPipeline(

@@ -14,27 +14,6 @@ struct Viewport {
   dv: vec3<f32>,     // The distance between 2 neighbor pixels on the V axis
 }
 
-struct Vertex {
-  position: vec3f,
-  normal: vec3f,
-  uv: vec2f,
-  materialIndex: f32,
-}
-
-alias IndexedTriangle = vec3u;
-
-struct Material {
-  color: vec3f,
-  shininess: f32,
-  specular: vec3f,
-  typeId: f32,
-}
-
-struct Ray {
-  origin: vec3f,
-  direction: vec3f,
-}
-
 struct HitRecord {
   t: f32,
   position: vec3f,
@@ -42,29 +21,28 @@ struct HitRecord {
   materialIndex: f32,
 }
 
-
-@group(0) @binding(0) var<uniform> frame_dimensions: vec2u;
+@group(0) @binding(0) var<uniform> resolution: vec2u;
 @group(0) @binding(1) var<storage, read_write> frame_buffer: array<vec3f>;
-@group(0) @binding(2) var<uniform> frame: u32;
+@group(0) @binding(2) var<uniform> frame_count: u32;
 @group(0) @binding(3) var<uniform> camera_position: vec3f;
 @group(0) @binding(4) var<uniform> viewport: Viewport;
 @group(0) @binding(5) var<storage, read> vertices: array<Vertex>;
 @group(0) @binding(6) var<storage, read> triangles: array<IndexedTriangle>;
 @group(0) @binding(7) var<storage, read> materials: array<Material>;
+@group(0) @binding(8) var<storage, read_write> bvh: array<AABB>;
 
-const WORKGROUP_SIZE = 8;
 const NUM_PIXEL_SAMPLES = 1u;
 
-@compute @workgroup_size(WORKGROUP_SIZE, WORKGROUP_SIZE)
-fn computeMain(@builtin(global_invocation_id) pixel: vec3u) {
+@compute @workgroup_size(8, 8)
+fn ray_trace(@builtin(global_invocation_id) pixel: vec3u) {
     // The frame (canvas) dimensions may not be divisble by workgroup size, and
     // thus the workgroup count is rounded up. This may result in extra pixels,
     // so return if a pixel is outside of the frame.
-    if pixel.x >= frame_dimensions.x || pixel.y >= frame_dimensions.y {
+    if pixel.x >= resolution.x || pixel.y >= resolution.y {
         return;
     }
 
-    var seed = init_rng(pixel.xy, frame_dimensions, frame);
+    var seed = init_rng(pixel.xy, resolution, frame_count);
     var color = vec3f(0);
     var sample = 0u;
 
@@ -72,7 +50,7 @@ fn computeMain(@builtin(global_invocation_id) pixel: vec3u) {
         var ray = ray(pixel.xy, &seed);
         var attenuation = vec3f(1);
 
-        for (var bounce = 0u; bounce < 8u; bounce++) {
+        for (var bounce = 0u; bounce < 12u; bounce++) {
             var hit = false;
             var hit_record: HitRecord;
             var closest_hit: HitRecord;
@@ -113,7 +91,7 @@ fn computeMain(@builtin(global_invocation_id) pixel: vec3u) {
 
     color /= f32(sample);
 
-    let frame_buffer_index = pixel.x + pixel.y * frame_dimensions.x;
+    let frame_buffer_index = pixel.x + pixel.y * resolution.x;
 
     frame_buffer[frame_buffer_index] += color;
 }
