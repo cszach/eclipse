@@ -41,55 +41,58 @@ const vertexBufferLayout: GPUVertexBufferLayout = {
  * information about the frame, camera position, viewport, geometries, and
  * materials.
  */
-const rayTracingBindGroupLayoutEntries: Iterable<GPUBindGroupLayoutEntry> = [
-  {
-    // Frame dimensions
-    binding: 0,
-    visibility: GPUShaderStage.COMPUTE | GPUShaderStage.FRAGMENT,
-    buffer: {type: 'uniform'},
-  },
-  {
-    // Frame buffer
-    binding: 1,
-    visibility: GPUShaderStage.COMPUTE | GPUShaderStage.FRAGMENT,
-    buffer: {type: 'storage'},
-  },
-  {
-    // Frame
-    binding: 2,
-    visibility: GPUShaderStage.COMPUTE | GPUShaderStage.FRAGMENT,
-    buffer: {type: 'uniform'},
-  },
-  {
-    // Camera position
-    binding: 3,
-    visibility: GPUShaderStage.COMPUTE,
-    buffer: {type: 'uniform'},
-  },
-  {
-    // Viewport
-    binding: 4,
-    visibility: GPUShaderStage.COMPUTE,
-    buffer: {type: 'uniform'},
-  },
-  {
-    // Vertices
-    binding: 5,
-    visibility: GPUShaderStage.COMPUTE,
-    buffer: {type: 'read-only-storage'},
-  },
-  {
-    // Faces
-    binding: 6,
-    visibility: GPUShaderStage.COMPUTE,
-    buffer: {type: 'read-only-storage'},
-  },
-  {
-    // Materials
-    binding: 7,
-    visibility: GPUShaderStage.COMPUTE,
-    buffer: {type: 'read-only-storage'},
-  },
-];
+const rayTracingBindGroupLayoutDescriptor: GPUBindGroupLayoutDescriptor = {
+  label: 'Ray tracing bind group layout',
+  entries: [
+    {
+      // Frame dimensions
+      binding: 0,
+      visibility: GPUShaderStage.COMPUTE | GPUShaderStage.FRAGMENT,
+      buffer: {type: 'uniform'},
+    },
+    {
+      // Frame buffer
+      binding: 1,
+      visibility: GPUShaderStage.COMPUTE | GPUShaderStage.FRAGMENT,
+      buffer: {type: 'storage'},
+    },
+    {
+      // Frame
+      binding: 2,
+      visibility: GPUShaderStage.COMPUTE | GPUShaderStage.FRAGMENT,
+      buffer: {type: 'uniform'},
+    },
+    {
+      // Camera position
+      binding: 3,
+      visibility: GPUShaderStage.COMPUTE,
+      buffer: {type: 'uniform'},
+    },
+    {
+      // Viewport
+      binding: 4,
+      visibility: GPUShaderStage.COMPUTE,
+      buffer: {type: 'uniform'},
+    },
+    {
+      // Vertices
+      binding: 5,
+      visibility: GPUShaderStage.COMPUTE,
+      buffer: {type: 'read-only-storage'},
+    },
+    {
+      // Faces
+      binding: 6,
+      visibility: GPUShaderStage.COMPUTE,
+      buffer: {type: 'read-only-storage'},
+    },
+    {
+      // Materials
+      binding: 7,
+      visibility: GPUShaderStage.COMPUTE,
+      buffer: {type: 'read-only-storage'},
+    },
+  ],
+};
 
-export {vertexBufferLayout, rayTracingBindGroupLayoutEntries};
+export {vertexBufferLayout, rayTracingBindGroupLayoutDescriptor};

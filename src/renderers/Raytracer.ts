@@ -20,7 +20,7 @@ import random from './shaders/random.wgsl';
 import lbvh from './shaders/lbvh.wgsl';
 import raytracerShader from './shaders/raytracer.wgsl';
 import frameBufferViewShader from './shaders/frame_buffer_view.wgsl';
-import {rayTracingBindGroupLayoutEntries} from './constants.js';
+import {rayTracingBindGroupLayoutDescriptor} from './constants.js';
 
 class Raytracer implements Renderer {
   readonly canvas: HTMLCanvasElement;
@@ -52,6 +52,7 @@ class Raytracer implements Renderer {
   private indexBuffer?: GPUBuffer;
 
   // Steps
+  private sceneBoundingBoxComputeStep?: ComputeStep;
   private rayTracingStep?: ComputeStep;
 
   constructor(canvas?: HTMLCanvasElement) {
@@ -124,9 +125,7 @@ class Raytracer implements Renderer {
       device.createPipelineLayout({
         label: 'Ray tracer render pipeline layout',
         bindGroupLayouts: [
-          device.createBindGroupLayout({
-            entries: rayTracingBindGroupLayoutEntries,
-          }),
+          device.createBindGroupLayout(rayTracingBindGroupLayoutDescriptor),
         ],
       })
     );
@@ -530,17 +529,23 @@ class Raytracer implements Renderer {
     this.rayTracingStep = new ComputeStep(
       'Ray tracing',
       device,
-      [
-        {
-          label: 'Ray tracing bind group layout',
-          entries: rayTracingBindGroupLayoutEntries,
-        },
-      ],
+      [rayTracingBindGroupLayoutDescriptor],
       primitives + random + raytracerShader,
       'ray_trace',
       {
         x: Math.ceil(this.canvas.width / 8),
         y: Math.ceil(this.canvas.height / 8),
+      }
+    );
+
+    this.sceneBoundingBoxComputeStep = new ComputeStep(
+      "Compute scene's bounding box",
+      device,
+      [rayTracingBindGroupLayoutDescriptor],
+      lbvh,
+      'compute_scene_bounding_box',
+      {
+        x: 0, // update in render
       }
     );
   }
