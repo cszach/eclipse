@@ -1,2 +1,2 @@
 export {Rasterizer} from './Rasterizer.js';
-export {Raytracer} from './Raytracer.js';
+export {RayTracer} from './RayTracer.js';

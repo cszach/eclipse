@@ -4,7 +4,7 @@ import {
   PerspectiveCamera,
   Scene,
   SolidColor,
-  Raytracer,
+  RayTracer,
   AmbientLight,
   PointLight,
   Plane,
@@ -21,7 +21,7 @@ if (canvas === null) {
   throw new Error('Canvas does not exist');
 }
 
-const renderer = new Raytracer(canvas);
+const renderer = new RayTracer(canvas);
 
 const plane = new Plane(1, 1);
 

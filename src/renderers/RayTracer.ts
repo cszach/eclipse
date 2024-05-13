@@ -17,12 +17,12 @@ import {ComputeStep} from './utils/ComputeStep.js';
 // Shaders
 import primitives from './shaders/primitives.wgsl';
 import random from './shaders/random.wgsl';
-import lbvh from './shaders/lbvh.wgsl';
-import raytracerShader from './shaders/raytracer.wgsl';
+import hlbvh from './shaders/hlbvh.wgsl';
+import rayTracerShader from './shaders/ray_tracer.wgsl';
 import frameBufferViewShader from './shaders/frame_buffer_view.wgsl';
 import {rayTracingBindGroupLayoutDescriptor} from './constants.js';
 
-class Raytracer implements Renderer {
+class RayTracer implements Renderer {
   readonly canvas: HTMLCanvasElement;
 
   private initialized = false;
@@ -530,7 +530,7 @@ class Raytracer implements Renderer {
       'Ray tracing',
       device,
       [rayTracingBindGroupLayoutDescriptor],
-      primitives + random + raytracerShader,
+      primitives + random + rayTracerShader,
       'ray_trace',
       {
         x: Math.ceil(this.canvas.width / 8),
@@ -539,10 +539,10 @@ class Raytracer implements Renderer {
     );
 
     this.sceneBoundingBoxComputeStep = new ComputeStep(
-      "Compute scene's bounding box",
+      "Scene's bounding box computation",
       device,
       [rayTracingBindGroupLayoutDescriptor],
-      lbvh,
+      primitives + hlbvh,
       'compute_scene_bounding_box',
       {
         x: 0, // update in render
@@ -677,4 +677,4 @@ class Raytracer implements Renderer {
   }
 }
 
-export {Raytracer};
+export {RayTracer};
