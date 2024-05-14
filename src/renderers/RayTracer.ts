@@ -15,12 +15,16 @@ import {Light} from '../lights/exports.js';
 import {ComputeStep} from './utils/ComputeStep.js';
 
 // Shaders
+import constants from './shaders/constants.wgsl';
 import primitives from './shaders/primitives.wgsl';
 import random from './shaders/random.wgsl';
 import hlbvh from './shaders/hlbvh.wgsl';
 import rayTracerShader from './shaders/ray_tracer.wgsl';
 import frameBufferViewShader from './shaders/frame_buffer_view.wgsl';
-import {rayTracingBindGroupLayoutDescriptor} from './constants.js';
+import {
+  hlbvhConstructionBindGroupLayoutDescriptor,
+  rayTracingBindGroupLayoutDescriptor,
+} from './constants.js';
 
 class RayTracer implements Renderer {
   readonly canvas: HTMLCanvasElement;
@@ -44,7 +48,9 @@ class RayTracer implements Renderer {
   private cameraPositionBuffer?: GPUBuffer;
   private viewportBuffer?: GPUBuffer;
   private materialBuffer?: GPUBuffer;
+  private sceneBoundingBoxBuffer?: GPUBuffer;
   private mortonCodesBuffer?: GPUBuffer;
+  private bvhBuffer?: GPUBuffer;
 
   // Render shader buffers
   private frameBufferViewVertexBuffer?: GPUBuffer;
@@ -138,7 +144,7 @@ class RayTracer implements Renderer {
   setRenderLoop(newRenderLoop: () => void) {
     const animationFrame = () => {
       newRenderLoop();
-      window.requestAnimationFrame(animationFrame);
+      // window.requestAnimationFrame(animationFrame);
     };
     this.animationFrame = animationFrame;
 
@@ -155,9 +161,11 @@ class RayTracer implements Renderer {
       !this.frameBuffer ||
       !this.frameBufferViewVertexBuffer ||
       !this.frameCountBuffer ||
-      !this.renderPipeline ||
       !this.rayTracingStep ||
+      !this.renderPipeline ||
       !this.resolutionBuffer ||
+      !this.sceneBoundingBoxBuffer ||
+      !this.sceneBoundingBoxComputeStep ||
       !this.viewportBuffer
     ) {
       throw new Error('Renderer has not been initialized properly.');
@@ -201,6 +209,7 @@ class RayTracer implements Renderer {
       !this.indexBuffer ||
       !this.materialBuffer ||
       !this.mortonCodesBuffer ||
+      !this.bvhBuffer ||
       scene.stats.outdated
     ) {
       const {vertexData, indexData, materialData} = this.getSceneData(scene);
@@ -241,9 +250,41 @@ class RayTracer implements Renderer {
         size: scene.stats.triangles * Uint32Array.BYTES_PER_ELEMENT,
         usage: GPUBufferUsage.STORAGE,
       });
+
+      if (this.bvhBuffer) this.bvhBuffer.destroy();
+      this.bvhBuffer = this.device.createBuffer({
+        label: 'Ray tracer BVH buffer',
+        size:
+          (scene.stats.triangles * 2 - 1) * 12 * Float32Array.BYTES_PER_ELEMENT,
+        usage: GPUBufferUsage.STORAGE,
+      });
+
+      this.sceneBoundingBoxComputeStep.workgroupCount.x = Math.ceil(
+        scene.stats.triangles / 512 / 8
+      );
     }
 
+    this.device.queue.writeBuffer(
+      this.sceneBoundingBoxBuffer,
+      0,
+      new Float32Array([
+        3.40282347e38, 3.40282347e38, 3.40282347e38, 0, -3.40282347e38,
+        -3.40282347e38, -3.40282347e38, 0,
+      ])
+    );
+
     // Begin ray tracing process
+
+    const bvhConstructionBindGroup = this.device.createBindGroup({
+      label: 'BVH construction bind group',
+      layout: this.sceneBoundingBoxComputeStep.bindGroupLayouts[1],
+      entries: [
+        {
+          binding: 0,
+          resource: {buffer: this.sceneBoundingBoxBuffer},
+        },
+      ],
+    });
 
     const rayTracingBindGroup = this.device.createBindGroup({
       label: 'Ray tracing bind group',
@@ -281,11 +322,19 @@ class RayTracer implements Renderer {
           binding: 7,
           resource: {buffer: this.materialBuffer},
         },
+        {
+          binding: 8,
+          resource: {buffer: this.bvhBuffer},
+        },
       ],
     });
 
     const encoder = this.device.createCommandEncoder();
 
+    this.sceneBoundingBoxComputeStep.run(encoder, [
+      rayTracingBindGroup,
+      bvhConstructionBindGroup,
+    ]);
     this.rayTracingStep.run(encoder, [rayTracingBindGroup]);
 
     const renderPass = encoder.beginRenderPass({
@@ -307,7 +356,40 @@ class RayTracer implements Renderer {
     renderPass.draw(6);
     renderPass.end();
 
-    this.device.queue.submit([encoder.finish()]);
+    if (this.frameCount === 1) {
+      const sceneAabbDebugBuffer = this.device.createBuffer({
+        size: 8 * Float32Array.BYTES_PER_ELEMENT,
+        usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ,
+      });
+
+      encoder.copyBufferToBuffer(
+        this.sceneBoundingBoxBuffer,
+        0,
+        sceneAabbDebugBuffer,
+        0,
+        8 * Float32Array.BYTES_PER_ELEMENT
+      );
+      this.device.queue.submit([encoder.finish()]);
+
+      sceneAabbDebugBuffer
+        .mapAsync(GPUMapMode.READ, 0, 8 * Float32Array.BYTES_PER_ELEMENT)
+        .then(() => {
+          const sceneAABB = new Float32Array(
+            sceneAabbDebugBuffer.getMappedRange(
+              0,
+              8 * Float32Array.BYTES_PER_ELEMENT
+            )
+          );
+
+          console.log(sceneAABB);
+
+          sceneAabbDebugBuffer.unmap();
+        });
+
+      console.log(scene.stats.triangles);
+    } else {
+      this.device.queue.submit([encoder.finish()]);
+    }
   }
 
   onCanvasResize() {
@@ -526,26 +608,29 @@ class RayTracer implements Renderer {
   }
 
   private setSteps(device: GPUDevice) {
+    this.sceneBoundingBoxComputeStep = new ComputeStep(
+      "Scene's bounding box computation",
+      device,
+      [
+        rayTracingBindGroupLayoutDescriptor,
+        hlbvhConstructionBindGroupLayoutDescriptor,
+      ],
+      constants + primitives + hlbvh,
+      'compute_scene_bounding_box',
+      {
+        x: 0, // update in render
+      }
+    );
+
     this.rayTracingStep = new ComputeStep(
       'Ray tracing',
       device,
       [rayTracingBindGroupLayoutDescriptor],
-      primitives + random + rayTracerShader,
+      constants + primitives + random + rayTracerShader,
       'ray_trace',
       {
         x: Math.ceil(this.canvas.width / 8),
         y: Math.ceil(this.canvas.height / 8),
-      }
-    );
-
-    this.sceneBoundingBoxComputeStep = new ComputeStep(
-      "Scene's bounding box computation",
-      device,
-      [rayTracingBindGroupLayoutDescriptor],
-      primitives + hlbvh,
-      'compute_scene_bounding_box',
-      {
-        x: 0, // update in render
       }
     );
   }
@@ -573,6 +658,15 @@ class RayTracer implements Renderer {
       label: 'Ray tracer viewport buffer',
       size: (9 + 3) * Float32Array.BYTES_PER_ELEMENT,
       usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+    });
+
+    this.sceneBoundingBoxBuffer = device.createBuffer({
+      label: "Scene's bounding box buffer",
+      size: (9 + 3) * Float32Array.BYTES_PER_ELEMENT,
+      usage:
+        GPUBufferUsage.STORAGE |
+        GPUBufferUsage.COPY_DST |
+        GPUBufferUsage.COPY_SRC, // TODO: remove once debugging is done
     });
   }
 

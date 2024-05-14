@@ -1,7 +1,9 @@
+@group(0) @binding(5) var<storage, read> vertices: array<Vertex>;
 @group(0) @binding(6) var<storage, read> triangles: array<IndexedTriangle>;
+@group(0) @binding(8) var<storage, read_write> bvh: array<AABB>;
 
 @group(1) @binding(0) var<storage, read_write> scene_aabb: AABB;
-@group(1) @binding(1) var<storage, read_write> morton_codes: array<u32>;
+// @group(1) @binding(1) var<storage, read_write> morton_codes: array<u32>;
 
 fn expand_bits(x: u32) -> u32 {
     var v = (x * 0x00010001u) & 0xFF0000FFu;
@@ -95,6 +97,77 @@ fn find_middle(
     }
 
     return middle;
+}
+
+fn union_aabb(a: AABB, b: AABB) -> AABB {
+    var u: AABB;
+
+    u.min = vec3f(
+        min(a.min.x, b.min.x),
+        min(a.min.y, b.min.y),
+        min(a.min.z, b.min.z),
+    );
+
+    u.max = vec3f(
+        max(a.max.x, b.max.x),
+        max(a.max.y, b.max.y),
+        max(a.max.z, b.max.z),
+    );
+
+    return u;
+}
+
+@compute @workgroup_size(8)
+fn compute_scene_bounding_box(@builtin(global_invocation_id) thread: vec3u) {
+    var i = thread.x * 512;
+    let end = min(i + 512, arrayLength(&triangles));
+
+    var min = vec3f(MAX_F32);
+    var max = vec3f(MIN_F32);
+
+    for (i = i; i < end; i++) {
+        let triangle = triangles[i];
+
+        let vertexA = vertices[triangle.x].position;
+        let vertexB = vertices[triangle.y].position;
+        let vertexC = vertices[triangle.z].position;
+
+        let centroid = (vertexA + vertexB + vertexC) / 3.0;
+
+        if min.x > centroid.x {
+            min.x = centroid.x;
+        }
+        if min.y > centroid.y {
+            min.y = centroid.y;
+        }
+        if min.z > centroid.z {
+            min.z = centroid.z;
+        }
+        if max.x < centroid.x {
+            max.x = centroid.x;
+        }
+        if max.y < centroid.y {
+            max.y = centroid.y;
+        }
+        if max.z < centroid.z {
+            max.z = centroid.z;
+        }
+
+        bvh[thread.x].min = min;
+        bvh[thread.x].max = max;
+    }
+
+    for (var stride = 8u; stride > 0; stride /= 2) {
+        storageBarrier();
+
+        if thread.x < stride {
+            bvh[thread.x] = union_aabb(bvh[thread.x], bvh[thread.x + stride]);
+        }
+    }
+
+    storageBarrier();
+
+    scene_aabb = bvh[0];
 }
 
 @compute @workgroup_size(8)

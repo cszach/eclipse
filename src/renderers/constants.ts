@@ -36,6 +36,25 @@ const vertexBufferLayout: GPUVertexBufferLayout = {
   ],
 };
 
+const hlbvhConstructionBindGroupLayoutDescriptor: GPUBindGroupLayoutDescriptor =
+  {
+    label: 'HLBVH construction bind group layout',
+    entries: [
+      {
+        // Scene's AABB
+        binding: 0,
+        visibility: GPUShaderStage.COMPUTE,
+        buffer: {type: 'storage'},
+      },
+      // {
+      //   // Morton codes
+      //   binding: 1,
+      //   visibility: GPUShaderStage.COMPUTE,
+      //   buffer: {type: 'storage'},
+      // },
+    ],
+  };
+
 /**
  * The bind group that can be shared among ray/path tracers. Contains
  * information about the frame, camera position, viewport, geometries, and
@@ -92,7 +111,17 @@ const rayTracingBindGroupLayoutDescriptor: GPUBindGroupLayoutDescriptor = {
       visibility: GPUShaderStage.COMPUTE,
       buffer: {type: 'read-only-storage'},
     },
+    {
+      // BVH
+      binding: 8,
+      visibility: GPUShaderStage.COMPUTE,
+      buffer: {type: 'storage'},
+    },
   ],
 };
 
-export {vertexBufferLayout, rayTracingBindGroupLayoutDescriptor};
+export {
+  vertexBufferLayout,
+  hlbvhConstructionBindGroupLayoutDescriptor,
+  rayTracingBindGroupLayoutDescriptor,
+};

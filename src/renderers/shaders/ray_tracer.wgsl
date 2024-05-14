@@ -1,6 +1,3 @@
-const EPSILON = 0.00001;
-const MAX_F32 = 0x1.fffffep+127;
-
 struct Viewport {
   // Viewport:
   //       du
