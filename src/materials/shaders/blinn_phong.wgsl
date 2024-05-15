@@ -34,7 +34,7 @@ fn blinn_phong(
   for (var i = 0u; i < arrayLength(lights); i++) {
     let light = lights[i];
 
-    switch u32(light.typeId) {
+    switch u32(light.type_id) {
       case 1: {
         color += ambient(light.color, light.intensity, material.color);
       }

@@ -1,10 +1,10 @@
 fn lambert(
-    material: Material,
-    frag: VertexOutput,
-    light: ptr<storage, array<Light>>,
-    cameraPosition: vec3f
+  material: Material,
+  frag: VertexOutput,
+  light: ptr<storage, array<Light>>,
+  cameraPosition: vec3f
 ) {
-    var color = vec3f();
+  var color = vec3f();
 
-    return vec4f(1);
+  return vec4f(1);
 }

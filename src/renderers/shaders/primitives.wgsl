@@ -2,7 +2,7 @@ struct Vertex {
   position: vec3f,
   normal: vec3f,
   uv: vec2f,
-  materialIndex: f32,
+  material_index: f32,
 }
 
 alias IndexedTriangle = vec3u;
@@ -11,7 +11,7 @@ struct Material {
   color: vec3f,
   shininess: f32,
   specular: vec3f,
-  typeId: f32,
+  type_id: f32,
 }
 
 struct Ray {
@@ -20,9 +20,9 @@ struct Ray {
 }
 
 struct AABB {
-    min: vec3f,
-    max: vec3f,
-    left_child_index: u32,
-    right_child_index: u32,
-    object_index: u32,
+  min: vec3f,
+  max: vec3f,
+  left_child_index: u32,
+  right_child_index: u32,
+  object_index: u32,
 }

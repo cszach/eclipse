@@ -5,25 +5,25 @@
 @group(1) @binding(0) var<storage, read_write> scene_aabb: AABB;
 // @group(1) @binding(1) var<storage, read_write> morton_codes: array<u32>;
 
-fn expand_bits(x: u32) -> u32 {
-    var v = (x * 0x00010001u) & 0xFF0000FFu;
+fn expandBits(x: u32) -> u32 {
+  var v = (x * 0x00010001u) & 0xFF0000FFu;
 
-    v = (v * 0x00000101u) & 0x0F00F00Fu;
-    v = (v * 0x00000011u) & 0xC30C30C3u;
-    v = (v * 0x00000005u) & 0x49249249u;
-    return v;
+  v = (v * 0x00000101u) & 0x0F00F00Fu;
+  v = (v * 0x00000011u) & 0xC30C30C3u;
+  v = (v * 0x00000005u) & 0x49249249u;
+  return v;
 }
 
-fn morton(nx: f32, ny: f32, nz: f32) -> u32 {
-    let x = min(max(nx * 1024f, 0f), 1023f);
-    let y = min(max(ny * 1024f, 0f), 1023f);
-    let z = min(max(nz * 1024f, 0f), 1023f);
+fn mortonCode(nx: f32, ny: f32, nz: f32) -> u32 {
+  let x = min(max(nx * 1024f, 0f), 1023f);
+  let y = min(max(ny * 1024f, 0f), 1023f);
+  let z = min(max(nz * 1024f, 0f), 1023f);
 
-    let xx = expand_bits(u32(x));
-    let yy = expand_bits(u32(y));
-    let zz = expand_bits(u32(z));
+  let expanded_x = expandBits(u32(x));
+  let expanded_y = expandBits(u32(y));
+  let expanded_z = expandBits(u32(z));
 
-    return xx * 4 + yy * 2 + zz;
+  return expanded_x * 4 + expanded_y * 2 + expanded_z;
 }
 
 // fn hierarchy(
@@ -62,108 +62,108 @@ fn morton(nx: f32, ny: f32, nz: f32) -> u32 {
 //     return aabb;
 // }
 
-fn find_middle(
-    sorted_morton_codes: ptr<storage, array<u32, >>,
-    start: u32,
-    end: u32
+fn findMiddle(
+  sorted_morton_codes: ptr<storage, array<u32, >>,
+  start: u32,
+  end: u32
 ) -> u32 {
-    let first_morton_code = sorted_morton_codes[start];
-    let last_morton_code = sorted_morton_codes[end];
+  let first_morton_code = sorted_morton_codes[start];
+  let last_morton_code = sorted_morton_codes[end];
 
-    if first_morton_code == last_morton_code {
-        return (start + end) >> 1;
+  if first_morton_code == last_morton_code {
+    return (start + end) >> 1;
+  }
+
+  let common_prefix = countLeadingZeros(first_morton_code ^ last_morton_code);
+
+  var middle = start; // Initial guess
+  var step = end - start;
+
+  loop {
+    step = (step + 1) >> 1;
+    var new_middle = middle + step;
+
+    if new_middle < end {
+      let middle_morton_code = sorted_morton_codes[new_middle];
+      let split_prefix = countLeadingZeros(first_morton_code ^ middle_morton_code);
+      if split_prefix > common_prefix {
+        middle = new_middle;
+      }
     }
 
-    let common_prefix = countLeadingZeros(first_morton_code ^ last_morton_code);
-
-    var middle = start; // Initial guess
-    var step = end - start;
-
-    loop {
-        step = (step + 1) >> 1;
-        var new_middle = middle + step;
-
-        if new_middle < end {
-            let middle_morton_code = sorted_morton_codes[new_middle];
-            let split_prefix = countLeadingZeros(first_morton_code ^ middle_morton_code);
-            if split_prefix > common_prefix {
-                middle = new_middle;
-            }
-        }
-
-        if step > 1 {
-            break;
-        }
+    if step > 1 {
+      break;
     }
+  }
 
-    return middle;
+  return middle;
 }
 
-fn union_aabb(a: AABB, b: AABB) -> AABB {
-    var u: AABB;
-    u.min = min(a.min, b.min);
-    u.max = max(a.max, b.max);
+fn unionAabb(a: AABB, b: AABB) -> AABB {
+  var u: AABB;
+  u.min = min(a.min, b.min);
+  u.max = max(a.max, b.max);
 
-    return u;
+  return u;
 }
 
 @compute @workgroup_size(64)
-fn compute_scene_bounding_box(
-    @builtin(global_invocation_id) gid: vec3u,
-    @builtin(local_invocation_id) lid: vec3u,
-    @builtin(num_workgroups) num_workgroups: vec3u,
+fn computeSceneBoundingBox(
+  @builtin(global_invocation_id) gid: vec3u,
+  @builtin(local_invocation_id) lid: vec3u,
+  @builtin(num_workgroups) num_workgroups: vec3u,
 ) {
-    var i = gid.x * 512;
-    let end = min(i + 512, arrayLength(&triangles));
+  var i = gid.x * 512;
+  let end = min(i + 512, arrayLength(&triangles));
 
-    var aabb: AABB;
+  var aabb: AABB;
+  aabb.min = vec3f(MAX_F32);
+  aabb.max = vec3f(MIN_F32);
+
+  for (i = i; i < end; i++) {
+    let triangle = triangles[i];
+
+    let vertexA = vertices[triangle.x].position;
+    let vertexB = vertices[triangle.y].position;
+    let vertexC = vertices[triangle.z].position;
+
+    let centroid = (vertexA + vertexB + vertexC) / 3.0;
+
+    aabb.min = min(aabb.min, centroid);
+    aabb.max = max(aabb.max, centroid);
+  }
+
+  bvh[gid.x] = aabb;
+
+  // Combine results in the workgroup using parallel reduction
+  for (var stride = 32u; stride > 0; stride /= 2) {
+    workgroupBarrier();
+
+    if lid.x < stride {
+      bvh[gid.x] = unionAabb(bvh[gid.x], bvh[gid.x + stride]);
+    }
+  }
+
+  // Combine results from all workgroups
+  storageBarrier();
+
+  if gid.x == 0 {
     aabb.min = vec3f(MAX_F32);
     aabb.max = vec3f(MIN_F32);
 
-    for (i = i; i < end; i++) {
-        let triangle = triangles[i];
-
-        let vertexA = vertices[triangle.x].position;
-        let vertexB = vertices[triangle.y].position;
-        let vertexC = vertices[triangle.z].position;
-
-        let centroid = (vertexA + vertexB + vertexC) / 3.0;
-
-        aabb.min = min(aabb.min, centroid);
-        aabb.max = max(aabb.max, centroid);
+    for (i = 0; i < num_workgroups.x; i++) {
+      aabb = unionAabb(aabb, bvh[i * 64]);
     }
 
-    bvh[gid.x] = aabb;
-
-    // Combine results in the workgroup using parallel reduction
-    for (var stride = 32u; stride > 0; stride /= 2) {
-        workgroupBarrier();
-
-        if lid.x < stride {
-            bvh[gid.x] = union_aabb(bvh[gid.x], bvh[gid.x + stride]);
-        }
-    }
-
-    // Combine results from all workgroups
-    storageBarrier();
-
-    if gid.x == 0 {
-        aabb.min = vec3f(MAX_F32);
-        aabb.max = vec3f(MIN_F32);
-
-        for (i = 0; i < num_workgroups.x; i++) {
-            aabb = union_aabb(aabb, bvh[i * 64]);
-        }
-
-        scene_aabb = aabb;
-    }
+    scene_aabb = aabb;
+  }
 }
 
-@compute @workgroup_size(8)
-fn assign_morton_codes(@builtin(global_invocation_id) object: vec3u) {
-    let object_index = object.x;
+@compute @workgroup_size(64)
+fn assignMortonCodes(@builtin(global_invocation_id) object: vec3u) {
+  let object_index = object.x;
 
-    if object_index >= arrayLength(&triangles) {
-        return;
-    }
+  if object_index >= arrayLength(&triangles) {
+    return;
+  }
 }

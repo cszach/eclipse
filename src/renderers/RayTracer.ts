@@ -607,7 +607,7 @@ class RayTracer implements Renderer {
         hlbvhConstructionBindGroupLayoutDescriptor,
       ],
       constants + primitives + hlbvh,
-      'compute_scene_bounding_box',
+      'computeSceneBoundingBox',
       {
         x: 0, // update in render
       }
@@ -618,7 +618,7 @@ class RayTracer implements Renderer {
       device,
       [rayTracingBindGroupLayoutDescriptor],
       constants + primitives + random + rayTracerShader,
-      'ray_trace',
+      'rayTrace',
       {
         x: Math.ceil(this.canvas.width / 8),
         y: Math.ceil(this.canvas.height / 8),
