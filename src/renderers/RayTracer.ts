@@ -144,7 +144,7 @@ class RayTracer implements Renderer {
   setRenderLoop(newRenderLoop: () => void) {
     const animationFrame = () => {
       newRenderLoop();
-      // window.requestAnimationFrame(animationFrame);
+      window.requestAnimationFrame(animationFrame);
     };
     this.animationFrame = animationFrame;
 
@@ -260,18 +260,9 @@ class RayTracer implements Renderer {
       });
 
       this.sceneBoundingBoxComputeStep.workgroupCount.x = Math.ceil(
-        scene.stats.triangles / 512 / 8
+        scene.stats.triangles / 512 / 64
       );
     }
-
-    this.device.queue.writeBuffer(
-      this.sceneBoundingBoxBuffer,
-      0,
-      new Float32Array([
-        3.40282347e38, 3.40282347e38, 3.40282347e38, 0, -3.40282347e38,
-        -3.40282347e38, -3.40282347e38, 0,
-      ])
-    );
 
     // Begin ray tracing process
 
@@ -356,40 +347,40 @@ class RayTracer implements Renderer {
     renderPass.draw(6);
     renderPass.end();
 
-    if (this.frameCount === 1) {
-      const sceneAabbDebugBuffer = this.device.createBuffer({
-        size: 8 * Float32Array.BYTES_PER_ELEMENT,
-        usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ,
-      });
+    // if (this.frameCount === 2) {
+    //   const sceneAabbDebugBuffer = this.device.createBuffer({
+    //     size: 8 * Float32Array.BYTES_PER_ELEMENT,
+    //     usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ,
+    //   });
 
-      encoder.copyBufferToBuffer(
-        this.sceneBoundingBoxBuffer,
-        0,
-        sceneAabbDebugBuffer,
-        0,
-        8 * Float32Array.BYTES_PER_ELEMENT
-      );
-      this.device.queue.submit([encoder.finish()]);
+    //   encoder.copyBufferToBuffer(
+    //     this.sceneBoundingBoxBuffer,
+    //     0,
+    //     sceneAabbDebugBuffer,
+    //     0,
+    //     8 * Float32Array.BYTES_PER_ELEMENT
+    //   );
+    //   this.device.queue.submit([encoder.finish()]);
 
-      sceneAabbDebugBuffer
-        .mapAsync(GPUMapMode.READ, 0, 8 * Float32Array.BYTES_PER_ELEMENT)
-        .then(() => {
-          const sceneAABB = new Float32Array(
-            sceneAabbDebugBuffer.getMappedRange(
-              0,
-              8 * Float32Array.BYTES_PER_ELEMENT
-            )
-          );
+    //   sceneAabbDebugBuffer
+    //     .mapAsync(GPUMapMode.READ, 0, 8 * Float32Array.BYTES_PER_ELEMENT)
+    //     .then(() => {
+    //       const sceneAABB = new Float32Array(
+    //         sceneAabbDebugBuffer.getMappedRange(
+    //           0,
+    //           8 * Float32Array.BYTES_PER_ELEMENT
+    //         )
+    //       );
 
-          console.log(sceneAABB);
+    //       console.log(sceneAABB);
 
-          sceneAabbDebugBuffer.unmap();
-        });
+    //       sceneAabbDebugBuffer.unmap();
+    //     });
 
-      console.log(scene.stats.triangles);
-    } else {
-      this.device.queue.submit([encoder.finish()]);
-    }
+    //   console.log('# of triangles: ' + scene.stats.triangles);
+    // } else {
+    this.device.queue.submit([encoder.finish()]);
+    // }
   }
 
   onCanvasResize() {
@@ -663,10 +654,7 @@ class RayTracer implements Renderer {
     this.sceneBoundingBoxBuffer = device.createBuffer({
       label: "Scene's bounding box buffer",
       size: (9 + 3) * Float32Array.BYTES_PER_ELEMENT,
-      usage:
-        GPUBufferUsage.STORAGE |
-        GPUBufferUsage.COPY_DST |
-        GPUBufferUsage.COPY_SRC, // TODO: remove once debugging is done
+      usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
     });
   }
 

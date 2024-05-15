@@ -38,7 +38,9 @@ quat.fromEuler(0, -Math.PI / 2, 0, 'xyz', rightWall.localQuaternion);
 
 const backWall = new Mesh(plane, new Lambert(white));
 vec3.set(0, 0, -0.5, backWall.localPosition);
-// quat.fromEuler(0, 0, 0, 'xyz', backWall.localQuaternion);
+
+const frontWall = new Mesh(plane, new Lambert(white));
+vec3.set(0, 0, 0.5, frontWall.localPosition);
 
 const ground = new Mesh(plane, new Lambert(white));
 vec3.set(0, -0.5, 0, ground.localPosition);
@@ -82,6 +84,7 @@ scene.add(
   tallBox,
   shortBox,
   // sphere,
+  // frontWall,
   ambient,
   light,
   lightMesh

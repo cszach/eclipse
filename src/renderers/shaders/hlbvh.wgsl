@@ -101,29 +101,24 @@ fn find_middle(
 
 fn union_aabb(a: AABB, b: AABB) -> AABB {
     var u: AABB;
-
-    u.min = vec3f(
-        min(a.min.x, b.min.x),
-        min(a.min.y, b.min.y),
-        min(a.min.z, b.min.z),
-    );
-
-    u.max = vec3f(
-        max(a.max.x, b.max.x),
-        max(a.max.y, b.max.y),
-        max(a.max.z, b.max.z),
-    );
+    u.min = min(a.min, b.min);
+    u.max = max(a.max, b.max);
 
     return u;
 }
 
-@compute @workgroup_size(8)
-fn compute_scene_bounding_box(@builtin(global_invocation_id) thread: vec3u) {
-    var i = thread.x * 512;
+@compute @workgroup_size(64)
+fn compute_scene_bounding_box(
+    @builtin(global_invocation_id) gid: vec3u,
+    @builtin(local_invocation_id) lid: vec3u,
+    @builtin(num_workgroups) num_workgroups: vec3u,
+) {
+    var i = gid.x * 512;
     let end = min(i + 512, arrayLength(&triangles));
 
-    var min = vec3f(MAX_F32);
-    var max = vec3f(MIN_F32);
+    var aabb: AABB;
+    aabb.min = vec3f(MAX_F32);
+    aabb.max = vec3f(MIN_F32);
 
     for (i = i; i < end; i++) {
         let triangle = triangles[i];
@@ -134,40 +129,34 @@ fn compute_scene_bounding_box(@builtin(global_invocation_id) thread: vec3u) {
 
         let centroid = (vertexA + vertexB + vertexC) / 3.0;
 
-        if min.x > centroid.x {
-            min.x = centroid.x;
-        }
-        if min.y > centroid.y {
-            min.y = centroid.y;
-        }
-        if min.z > centroid.z {
-            min.z = centroid.z;
-        }
-        if max.x < centroid.x {
-            max.x = centroid.x;
-        }
-        if max.y < centroid.y {
-            max.y = centroid.y;
-        }
-        if max.z < centroid.z {
-            max.z = centroid.z;
-        }
-
-        bvh[thread.x].min = min;
-        bvh[thread.x].max = max;
+        aabb.min = min(aabb.min, centroid);
+        aabb.max = max(aabb.max, centroid);
     }
 
-    for (var stride = 8u; stride > 0; stride /= 2) {
-        storageBarrier();
+    bvh[gid.x] = aabb;
 
-        if thread.x < stride {
-            bvh[thread.x] = union_aabb(bvh[thread.x], bvh[thread.x + stride]);
+    // Combine results in the workgroup using parallel reduction
+    for (var stride = 32u; stride > 0; stride /= 2) {
+        workgroupBarrier();
+
+        if lid.x < stride {
+            bvh[gid.x] = union_aabb(bvh[gid.x], bvh[gid.x + stride]);
         }
     }
 
+    // Combine results from all workgroups
     storageBarrier();
 
-    scene_aabb = bvh[0];
+    if gid.x == 0 {
+        aabb.min = vec3f(MAX_F32);
+        aabb.max = vec3f(MIN_F32);
+
+        for (i = 0; i < num_workgroups.x; i++) {
+            aabb = union_aabb(aabb, bvh[i * 64]);
+        }
+
+        scene_aabb = aabb;
+    }
 }
 
 @compute @workgroup_size(8)
