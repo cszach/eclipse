@@ -1,10 +1,10 @@
 import {Group} from '../primitives/Group.js';
 import {Camera} from './Camera.js';
-import {mat4} from 'wgpu-matrix';
+import {mat4, Mat4} from 'wgpu-matrix';
 
 class PerspectiveCamera extends Group implements Camera {
-  projectionMatrix: mat4;
-  projectionMatrixInverse: mat4;
+  projectionMatrix: Mat4;
+  projectionMatrixInverse: Mat4;
 
   private _verticalFovRadians: number;
   private _aspectRatio: number;
