@@ -1,6 +1,9 @@
 {
   "conventionalCommits.scopes": [
-    "RayTracer"
+    "renderers",
+    "webgpu-utils",
+    "renderers/utils",
+    "cameras"
   ],
   "[wgsl]": {
     "editor.formatOnSave": false
