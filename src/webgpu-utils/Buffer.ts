@@ -1,4 +1,4 @@
-import {RenderData} from '../renderers/exports.js';
+import {RenderData, ResizeData} from '../renderers/exports.js';
 
 enum BufferType {
   FrameResolution,
@@ -16,6 +16,11 @@ type BufferOnBeforeRenderCallback = (
   buffer: Buffer
 ) => void;
 
+type BufferOnCanvasResizeCallback = (
+  resizeData: ResizeData,
+  buffer: Buffer
+) => void;
+
 type BufferOptions = {
   label?: string;
   wgslIdentifier: string;
@@ -24,6 +29,7 @@ type BufferOptions = {
   staticSize?: number;
   mappedAtCreation?: boolean;
   onBeforeRender?: BufferOnBeforeRenderCallback;
+  onCanvasResize?: BufferOnCanvasResizeCallback;
 };
 
 const predefinedOptions: {[type: number]: BufferOptions} = {
@@ -33,7 +39,8 @@ const predefinedOptions: {[type: number]: BufferOptions} = {
     wgslType: 'vec2u',
     usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
     staticSize: 2 * Uint32Array.BYTES_PER_ELEMENT,
-    onBeforeRender: (renderData, buffer) => {
+    onCanvasResize: (renderData, buffer) => {
+      console.log(renderData.canvas.width);
       buffer.write(
         new Uint32Array([renderData.canvas.width, renderData.canvas.height])
       );
@@ -51,9 +58,16 @@ const predefinedOptions: {[type: number]: BufferOptions} = {
           Float32Array.BYTES_PER_ELEMENT *
           renderData.canvas.width *
           renderData.canvas.height;
-
         buffer.build(renderData.device, true);
       }
+    },
+    onCanvasResize: (resizeData, buffer) => {
+      buffer.size =
+        4 *
+        Float32Array.BYTES_PER_ELEMENT *
+        resizeData.canvas.width *
+        resizeData.canvas.height;
+      buffer.build(resizeData.device, true);
     },
   },
   [BufferType.FrameCount]: {
@@ -230,4 +244,10 @@ class Buffer {
   }
 }
 
-export {Buffer, BufferType, BufferOptions, BufferOnBeforeRenderCallback};
+export {
+  Buffer,
+  BufferType,
+  BufferOptions,
+  BufferOnBeforeRenderCallback,
+  BufferOnCanvasResizeCallback,
+};

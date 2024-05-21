@@ -304,6 +304,7 @@ class ProgrammableRenderer implements Renderer {
     }
 
     this.frameCount++;
+    camera.aspectRatio = this.canvas.width / this.canvas.height;
 
     const renderData: RenderData = {
       device: this.device!,

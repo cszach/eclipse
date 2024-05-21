@@ -9,6 +9,9 @@ import random from './shaders/random.wgsl';
 import rayTracerShader from './shaders/ray_tracer.wgsl';
 
 class PathTracer extends ProgrammableRenderer {
+  private _observeCanvasResize = true;
+  private canvasResizeObserver: ResizeObserver;
+
   constructor(options?: RendererOptions) {
     super(
       {
@@ -40,11 +43,42 @@ class PathTracer extends ProgrammableRenderer {
 
     this.addPipeline(rayTracingPipeline);
 
+    // Resize observer
+
+    this.canvasResizeObserver = new ResizeObserver(entries => {
+      entries.forEach(entry => {
+        const canvas = entry.target as HTMLCanvasElement;
+        const width = entry.contentBoxSize[0].inlineSize;
+        const height = entry.contentBoxSize[0].blockSize;
+
+        canvas.width = width;
+        canvas.height = height;
+
+        this.onCanvasResize();
+      });
+    });
+
     Promise.resolve(this.init()).then(() => {
+      this.observeCanvasResize = this._observeCanvasResize;
+
       if (this.animationFrame) {
         window.requestAnimationFrame(this.animationFrame);
       }
     });
+  }
+
+  get observeCanvasResize(): boolean {
+    return this._observeCanvasResize;
+  }
+
+  set observeCanvasResize(value: boolean) {
+    this._observeCanvasResize = value;
+
+    if (this._observeCanvasResize) {
+      this.canvasResizeObserver.observe(this.canvas);
+    } else {
+      this.canvasResizeObserver.unobserve(this.canvas);
+    }
   }
 
   onCanvasResize() {
@@ -52,15 +86,19 @@ class PathTracer extends ProgrammableRenderer {
       throw new Error('GPU device has not been set.');
     }
 
-    this.frameBuffer.size =
-      4 * // RGBA
-      Float32Array.BYTES_PER_ELEMENT *
-      this.canvas.width *
-      this.canvas.height;
+    this.buffers
+      .filter(buffer => buffer.options.onCanvasResize)
+      .forEach(buffer =>
+        buffer.options.onCanvasResize!(
+          {
+            canvas: this.canvas,
+            device: this.device!,
+          },
+          buffer
+        )
+      );
 
-    this.frameResolutionBuffer.writeMapped(
-      new Uint32Array([this.canvas.width, this.canvas.height])
-    );
+    this.rayTracingBindGroup.build(this.device);
 
     this.frameCount = 0;
   }

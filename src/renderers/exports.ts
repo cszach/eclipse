@@ -7,3 +7,4 @@ export * from './RayTracer.js';
 export * from './RenderData.js';
 export * from './Renderer.js';
 export * from './RendererOptions.js';
+export * from './ResizeData.js';
