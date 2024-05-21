@@ -2,14 +2,16 @@ import {Light} from '../lights/Light.js';
 import {Group} from './Group.js';
 import {Mesh} from './Mesh.js';
 
+type SceneStats = {
+  outdated: boolean;
+  meshes: number;
+  vertices: number;
+  triangles: number;
+  lights: number;
+};
+
 class Scene extends Group {
-  stats: {
-    outdated: boolean;
-    meshes: number;
-    vertices: number;
-    triangles: number;
-    lights: number;
-  };
+  stats: SceneStats;
 
   constructor() {
     super();
@@ -48,4 +50,4 @@ class Scene extends Group {
   }
 }
 
-export {Scene};
+export {Scene, SceneStats};
