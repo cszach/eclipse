@@ -4,7 +4,6 @@ import {
   PerspectiveCamera,
   Scene,
   SolidColor,
-  RayTracer,
   AmbientLight,
   PointLight,
   Plane,
@@ -93,7 +92,6 @@ const stats = new Stats();
 stats.showPanel(0);
 document.body.appendChild(stats.dom);
 
-// const renderer = new RayTracer(canvas);
 const renderer = new PathTracer({canvas});
 
 renderer.setRenderLoop(() => {

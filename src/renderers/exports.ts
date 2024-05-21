@@ -3,7 +3,6 @@ export * from './utils/exports.js';
 export * from './PathTracer.js';
 export * from './ProgrammableRenderer.js';
 export * from './Rasterizer.js';
-export * from './RayTracer.js';
 export * from './RenderData.js';
 export * from './Renderer.js';
 export * from './RendererOptions.js';
