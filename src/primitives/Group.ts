@@ -3,9 +3,9 @@ import {UP} from '../constants.js';
 
 class Group {
   children: Group[];
-  localPosition: vec3;
+  localPosition: Vec3;
   localQuaternion: quat;
-  localScale: vec3;
+  localScale: Vec3;
 
   static readonly DEFAULT_UP: vec3 = vec3.create(0, 1, 0);
 
