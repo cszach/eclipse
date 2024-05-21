@@ -13,7 +13,7 @@ import {SceneUtils, ViewportUtils} from './utils/exports.js';
 // Shaders
 import {frameBufferViewWgsl} from './shaders/exports.js';
 
-class ProgrammableRenderer implements Renderer {
+class RayTracerBase implements Renderer {
   protected options: RendererOptions;
   protected buffers: Buffer[];
   protected bindGroups: BindGroup[];
@@ -357,4 +357,4 @@ class ProgrammableRenderer implements Renderer {
   }
 }
 
-export {ProgrammableRenderer};
+export {RayTracerBase};

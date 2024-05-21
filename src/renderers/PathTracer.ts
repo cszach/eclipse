@@ -1,5 +1,5 @@
 import {ComputeFor, ComputePipeline} from '../webgpu-utils/exports.js';
-import {ProgrammableRenderer} from './ProgrammableRenderer.js';
+import {RayTracerBase} from './RayTracerBase.js';
 import {RendererOptions} from './RendererOptions.js';
 
 // Shaders
@@ -8,7 +8,7 @@ import primitives from './shaders/primitives.wgsl';
 import random from './shaders/random.wgsl';
 import rayTracerShader from './shaders/ray_tracer.wgsl';
 
-class PathTracer extends ProgrammableRenderer {
+class PathTracer extends RayTracerBase {
   private _observeCanvasResize = true;
   private canvasResizeObserver: ResizeObserver;
 
