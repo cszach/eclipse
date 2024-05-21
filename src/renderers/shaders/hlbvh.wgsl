@@ -1,10 +1,3 @@
-@group(0) @binding(5) var<storage, read> vertices: array<Vertex>;
-@group(0) @binding(6) var<storage, read> triangles: array<IndexedTriangle>;
-@group(0) @binding(8) var<storage, read_write> bvh: array<AABB>;
-
-@group(1) @binding(0) var<storage, read_write> scene_aabb: AABB;
-// @group(1) @binding(1) var<storage, read_write> morton_codes: array<u32>;
-
 fn expandBits(x: u32) -> u32 {
   var v = (x * 0x00010001u) & 0xFF0000FFu;
 
@@ -14,10 +7,10 @@ fn expandBits(x: u32) -> u32 {
   return v;
 }
 
-fn mortonCode(nx: f32, ny: f32, nz: f32) -> u32 {
-  let x = min(max(nx * 1024f, 0f), 1023f);
-  let y = min(max(ny * 1024f, 0f), 1023f);
-  let z = min(max(nz * 1024f, 0f), 1023f);
+fn mortonCode(normalized_coordinates: vec3f) -> u32 {
+  let x = min(max(normalized_coordinates.x * 1024f, 0f), 1023f);
+  let y = min(max(normalized_coordinates.y * 1024f, 0f), 1023f);
+  let z = min(max(normalized_coordinates.z * 1024f, 0f), 1023f);
 
   let expanded_x = expandBits(u32(x));
   let expanded_y = expandBits(u32(y));
@@ -156,6 +149,24 @@ fn computeSceneBoundingBox(
     }
 
     scene_aabb = aabb;
+  }
+
+  // Assign morton codes
+  storageBarrier();
+
+  i = gid.x * 512;
+  let scene_aabb_size = aabb.max - aabb.min;
+
+  for (i = i; i < end; i++) {
+    let triangle = triangles[i];
+
+    let vertexA = vertices[triangle.x].position;
+    let vertexB = vertices[triangle.y].position;
+    let vertexC = vertices[triangle.z].position;
+
+    let centroid = (vertexA + vertexB + vertexC) / 3.0 + abs(scene_aabb.min);
+
+    let morton_code = mortonCode(centroid / scene_aabb_size);
   }
 }
 

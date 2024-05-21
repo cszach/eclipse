@@ -18,16 +18,6 @@ struct HitRecord {
   material_index: f32,
 }
 
-@group(0) @binding(0) var<uniform> resolution: vec2u;
-@group(0) @binding(1) var<storage, read_write> frame_buffer: array<vec3f>;
-@group(0) @binding(2) var<uniform> frame_count: u32;
-@group(0) @binding(3) var<uniform> camera_position: vec3f;
-@group(0) @binding(4) var<uniform> viewport: Viewport;
-@group(0) @binding(5) var<storage, read> vertices: array<Vertex>;
-@group(0) @binding(6) var<storage, read> triangles: array<IndexedTriangle>;
-@group(0) @binding(7) var<storage, read> materials: array<Material>;
-@group(0) @binding(8) var<storage, read_write> bvh: array<AABB>;
-
 const NUM_PIXEL_SAMPLES = 4u;
 
 @compute @workgroup_size(8, 8)

@@ -1,7 +1,3 @@
-@group(0) @binding(0) var<uniform> resolution: vec2u;
-@group(0) @binding(1) var<storage, read_write> frame_buffer: array<vec3f>;
-@group(0) @binding(2) var<uniform> frame_count: u32;
-
 struct VertexInput {
   @location(1) position: vec2f,
   @location(2) uv: vec2f,
@@ -29,5 +25,5 @@ fn fragmentMain(input: VertexOutput) -> @location(0) vec4f {
   let frame_buffer_index = pixel_x + pixel_y * resolution.x;
   let pixel = frame_buffer[frame_buffer_index];
 
-  return vec4f(pixel, 1) / f32(frame_count + 1);
+  return vec4f(pixel, 1) / f32(frame_count);
 }

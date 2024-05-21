@@ -11,6 +11,7 @@ import {
   Metal,
   Lambert,
   Sphere,
+  PathTracer,
 } from '../../src/index.js';
 import {quat, vec3} from 'wgpu-matrix';
 import Stats from 'stats.js';
@@ -20,8 +21,6 @@ const canvas = document.querySelector('canvas');
 if (canvas === null) {
   throw new Error('Canvas does not exist');
 }
-
-const renderer = new RayTracer(canvas);
 
 const plane = new Plane(1, 1);
 
@@ -93,6 +92,9 @@ scene.add(
 const stats = new Stats();
 stats.showPanel(0);
 document.body.appendChild(stats.dom);
+
+// const renderer = new RayTracer(canvas);
+const renderer = new PathTracer({canvas});
 
 renderer.setRenderLoop(() => {
   stats.begin();
