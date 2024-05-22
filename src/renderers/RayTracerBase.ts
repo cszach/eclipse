@@ -14,18 +14,18 @@ import {SceneUtils, ViewportUtils} from './utils/exports.js';
 import {frameBufferViewWgsl} from './shaders/exports.js';
 
 class RayTracerBase implements Renderer {
-  protected options: RendererOptions;
-  protected buffers: Buffer[];
-  protected bindGroups: BindGroup[];
-  protected pipelines: ComputePipeline[];
+  readonly options: RendererOptions;
+  buffers: Buffer[];
+  bindGroups: BindGroup[];
+  pipelines: ComputePipeline[];
 
   canvas: HTMLCanvasElement;
 
-  protected isInitialized = false;
-  protected device?: GPUDevice;
-  protected context?: GPUCanvasContext;
-  protected format?: GPUTextureFormat;
-  protected animationFrame?: () => void;
+  isInitialized = false;
+  device?: GPUDevice;
+  context?: GPUCanvasContext;
+  format?: GPUTextureFormat;
+  animationFrame?: () => void;
 
   // Ray tracing
   frameCount = 0;
