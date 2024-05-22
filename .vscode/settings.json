@@ -3,7 +3,8 @@
     "renderers",
     "webgpu-utils",
     "renderers/utils",
-    "cameras"
+    "cameras",
+    "primitives"
   ],
   "[wgsl]": {
     "editor.formatOnSave": false
