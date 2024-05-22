@@ -19,7 +19,7 @@ type SceneData = {
 
 class SceneUtils {
   static getData(scene: Scene, updateStats = false): SceneData {
-    if (updateStats && scene.stats.outdated) {
+    if (updateStats && scene.stats.isOutdated) {
       scene.updateStats();
     }
 

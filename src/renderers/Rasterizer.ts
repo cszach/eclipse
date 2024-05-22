@@ -99,7 +99,7 @@ class Rasterizer implements Renderer {
         this.depthTexture.createView();
     }
 
-    if (scene.stats.outdated) {
+    if (scene.stats.isOutdated) {
       scene.updateStats();
     }
 

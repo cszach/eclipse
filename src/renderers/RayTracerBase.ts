@@ -313,7 +313,7 @@ class RayTracerBase implements Renderer {
       camera,
       scene: SceneUtils.getData(scene, true),
       viewport: ViewportUtils.getData(camera, this.canvas),
-      sceneChanged: !this.vertexBuffer.gpuObject || scene.stats.outdated,
+      sceneChanged: !this.vertexBuffer.gpuObject || scene.stats.isOutdated,
     };
 
     this.buffers

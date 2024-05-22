@@ -3,7 +3,7 @@ import {Group} from './Group.js';
 import {Mesh} from './Mesh.js';
 
 type SceneStats = {
-  outdated: boolean;
+  isOutdated: boolean;
   meshes: number;
   vertices: number;
   triangles: number;
@@ -17,7 +17,7 @@ class Scene extends Group {
     super();
 
     this.stats = {
-      outdated: false,
+      isOutdated: false,
       meshes: 0,
       vertices: 0,
       triangles: 0,
@@ -27,7 +27,7 @@ class Scene extends Group {
 
   override add(...children: Group[]) {
     this.children.push(...children);
-    this.stats.outdated = true;
+    this.stats.isOutdated = true;
   }
 
   updateStats(): void {
@@ -46,7 +46,7 @@ class Scene extends Group {
       }
     });
 
-    this.stats = {meshes, vertices, triangles, lights, outdated: false};
+    this.stats = {meshes, vertices, triangles, lights, isOutdated: false};
   }
 }
 
