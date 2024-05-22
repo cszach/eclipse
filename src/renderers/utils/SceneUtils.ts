@@ -91,7 +91,7 @@ class SceneUtils {
           indexData[indexDataOffset++] = indices[0] + numVerticesProcessed;
           indexData[indexDataOffset++] = indices[1] + numVerticesProcessed;
           indexData[indexDataOffset++] = indices[2] + numVerticesProcessed;
-          indexData[indexDataOffset++] = 0; // Pad
+          indexData[indexDataOffset++] = 0; // TODO: world matrix index
         });
 
         mesh.geometry.forEachVertex((_index, position, normal, uv) => {

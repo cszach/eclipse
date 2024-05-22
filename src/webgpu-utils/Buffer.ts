@@ -124,7 +124,7 @@ const predefinedOptions: {[type: number]: BufferOptions} = {
   [BufferType.Index]: {
     label: 'Index buffer',
     wgslIdentifier: 'triangles',
-    wgslType: 'array<IndexedTriangle>',
+    wgslType: 'array<Triangle>',
     usage: GPUBufferUsage.STORAGE,
     mappedAtCreation: true,
     onBeforeRender: (renderData, buffer) => {

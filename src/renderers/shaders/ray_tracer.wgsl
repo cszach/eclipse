@@ -105,11 +105,12 @@ fn ray(pixel: vec2u, seed_ptr: ptr<function, u32>) -> Ray {
 // result of the intersection, if hit, is written into the provided hit record.
 fn rayIntersectsTriangle(
   ray: Ray,
-  triangle: IndexedTriangle,
+  triangle: Triangle,
   hit_record_ptr: ptr<function, HitRecord>
 ) -> bool {
-  let edge1 = vertices[triangle.y].position - vertices[triangle.x].position;
-  let edge2 = vertices[triangle.z].position - vertices[triangle.x].position;
+  let indices = triangle.indices;
+  let edge1 = vertices[indices.y].position - vertices[indices.x].position;
+  let edge2 = vertices[indices.z].position - vertices[indices.x].position;
   let ray_cross_edge2 = cross(ray.direction, edge2);
   let determinant = dot(edge1, ray_cross_edge2);
 
@@ -119,7 +120,7 @@ fn rayIntersectsTriangle(
   }
 
   let determinant_inverse = 1.0 / determinant;
-  let s = ray.origin - vertices[triangle.x].position;
+  let s = ray.origin - vertices[indices.x].position;
   let u = determinant_inverse * dot(s, ray_cross_edge2);
 
   if u < 0 || u > 1 {
@@ -138,15 +139,15 @@ fn rayIntersectsTriangle(
   if t > EPSILON { // Hit
     // Interpolate surface normal
 
-    let na = vertices[triangle.x].normal;
-    let nb = vertices[triangle.y].normal;
-    let nc = vertices[triangle.z].normal;
+    let na = vertices[indices.x].normal;
+    let nb = vertices[indices.y].normal;
+    let nc = vertices[indices.z].normal;
     let surface_normal = u * na + v * nb + (1 - u - v) * nc;
 
     (*hit_record_ptr).t = t;
     (*hit_record_ptr).position = ray.origin + ray.direction * t;
     (*hit_record_ptr).normal = surface_normal;
-    (*hit_record_ptr).material_index = vertices[triangle.x].material_index;
+    (*hit_record_ptr).material_index = vertices[indices.x].material_index;
     return true;
   }
 

@@ -5,7 +5,10 @@ struct Vertex {
   material_index: f32,
 }
 
-alias IndexedTriangle = vec3u;
+struct Triangle {
+  indices: vec3u,
+  worldMatrixIndex: u32,
+}
 
 struct Material {
   color: vec3f,
