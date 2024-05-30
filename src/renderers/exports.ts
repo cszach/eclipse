@@ -1,5 +1,6 @@
 export * from './shaders/exports.js';
 export * from './utils/exports.js';
+export * from './constants.js';
 export * from './PathTracer.js';
 export * from './RayTracerBase.js';
 export * from './Rasterizer.js';

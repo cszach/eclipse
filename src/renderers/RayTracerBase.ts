@@ -1,6 +1,16 @@
 import {PerspectiveCamera} from '../cameras/exports.js';
 import {Scene} from '../primitives/exports.js';
-import {Renderer, RenderData, RendererOptions} from './exports.js';
+import {
+  Capacities,
+  Renderer,
+  RenderData,
+  RendererOptions,
+  DEFAULT_MAX_STORAGE_BUFFER_BINDING_SIZE,
+  DEFAULT_VERTEX_CAPACITY,
+  DEFAULT_TRIANGLE_CAPACITY,
+  DEFAULT_MATERIAL_CAPACITY,
+  DEFAULT_OBJECT_CAPACITY,
+} from './exports.js';
 import {
   Buffer,
   BufferType,
@@ -14,13 +24,12 @@ import {SceneUtils, ViewportUtils} from './utils/exports.js';
 import {frameBufferViewWgsl} from './shaders/exports.js';
 
 class RayTracerBase implements Renderer {
-  readonly options: RendererOptions;
   buffers: Buffer[];
   bindGroups: BindGroup[];
   pipelines: ComputePipeline[];
 
+  readonly options: RendererOptions;
   canvas: HTMLCanvasElement;
-
   isInitialized = false;
   device?: GPUDevice;
   context?: GPUCanvasContext;
@@ -37,7 +46,9 @@ class RayTracerBase implements Renderer {
   vertexBuffer: Buffer;
   indexBuffer: Buffer;
   materialBuffer: Buffer;
+  sceneStatsBuffer: Buffer;
   rayTracingBindGroup: BindGroup;
+  private capacities: Capacities;
 
   // Frame buffer view
   private frameBufferViewVertexBuffer?: GPUBuffer;
@@ -46,17 +57,102 @@ class RayTracerBase implements Renderer {
 
   constructor(options: RendererOptions = {}, initialize = true) {
     this.options = options;
+    Object.freeze(this.options);
+
     this.canvas = options.canvas ?? document.createElement('canvas');
+    this.capacities = {
+      vertices: options.initialCapacities?.vertices ?? DEFAULT_VERTEX_CAPACITY,
+      triangles:
+        options.initialCapacities?.triangles ?? DEFAULT_TRIANGLE_CAPACITY,
+      objects: options.initialCapacities?.objects ?? DEFAULT_OBJECT_CAPACITY,
+      materials:
+        options.initialCapacities?.materials ?? DEFAULT_MATERIAL_CAPACITY,
+    };
 
     // Ray tracing buffers
+
     this.frameResolutionBuffer = Buffer.ofType(BufferType.FrameResolution);
+    this.frameResolutionBuffer.onCanvasResize = (data, buffer) => {
+      buffer.write(new Uint32Array([data.canvas.width, data.canvas.height]));
+    };
+
     this.frameBuffer = Buffer.ofType(BufferType.Frame);
+    this.frameBuffer.onCanvasResize = (data, buffer) => {
+      buffer.size =
+        4 * // RGBA
+        Float32Array.BYTES_PER_ELEMENT *
+        data.canvas.width *
+        data.canvas.height;
+      buffer.build(data.device, true);
+    };
+
     this.frameCountBuffer = Buffer.ofType(BufferType.FrameCount);
+    this.frameCountBuffer.onBeforeRender = (data, buffer) => {
+      buffer.write(new Uint32Array([data.frameCount]));
+    };
+
     this.cameraPositionBuffer = Buffer.ofType(BufferType.CameraPosition);
+    this.cameraPositionBuffer.onBeforeRender = (data, buffer) => {
+      buffer.write(data.camera.localPosition); // FIXME: use global pos
+    };
+
     this.viewportBuffer = Buffer.ofType(BufferType.Viewport);
+    this.viewportBuffer.onBeforeRender = (data, buffer) => {
+      const {origin, du, dv} = data.viewport;
+
+      // prettier-ignore
+      buffer.write(new Float32Array([
+        origin[0], origin[1], origin[2], 0,
+            du[0],     du[1],     du[2], 0,
+            dv[0],     dv[1],     dv[2], 0
+      ]))
+    };
+
     this.vertexBuffer = Buffer.ofType(BufferType.Vertex);
+    this.vertexBuffer.size = DEFAULT_VERTEX_CAPACITY * 12 * 4;
+    this.vertexBuffer.onBeforeRender = (data, buffer) => {
+      if (data.sceneChanged) {
+        const grown = buffer.grow(data.scene.vertexData.byteLength);
+        buffer.build(data.device, grown);
+        buffer.writeMapped(data.scene.vertexData);
+        this.rayTracingBindGroup.build(data.device);
+      }
+    };
+
     this.indexBuffer = Buffer.ofType(BufferType.Index);
+    this.indexBuffer.size = DEFAULT_TRIANGLE_CAPACITY * 4 * 4;
+    this.indexBuffer.onBeforeRender = (data, buffer) => {
+      if (data.sceneChanged) {
+        const grown = buffer.grow(data.scene.indexData.byteLength);
+        buffer.build(data.device, grown);
+        buffer.writeMapped(data.scene.indexData);
+        this.rayTracingBindGroup.build(data.device);
+      }
+    };
+
     this.materialBuffer = Buffer.ofType(BufferType.Material);
+    this.materialBuffer.size = DEFAULT_MATERIAL_CAPACITY * 8 * 4;
+    this.materialBuffer.onBeforeRender = (data, buffer) => {
+      if (data.sceneChanged) {
+        const grown = buffer.grow(data.scene.materialData.byteLength);
+        buffer.build(data.device, grown);
+        buffer.writeMapped(data.scene.materialData);
+        this.rayTracingBindGroup.build(data.device);
+      }
+    };
+
+    this.sceneStatsBuffer = Buffer.ofType(BufferType.SceneStats);
+    this.sceneStatsBuffer.onBeforeRender = (data, buffer) => {
+      buffer.build(data.device);
+      buffer.write(
+        new Uint32Array([
+          data.sceneStats.meshes,
+          data.sceneStats.vertices,
+          data.sceneStats.triangles,
+          data.sceneStats.lights,
+        ])
+      );
+    };
 
     // Ray tracing bind group
     this.rayTracingBindGroup = new BindGroup({label: 'Ray tracing bind group'});
@@ -97,6 +193,11 @@ class RayTracerBase implements Renderer {
     );
     this.rayTracingBindGroup.addBuffer(
       this.materialBuffer,
+      GPUShaderStage.COMPUTE,
+      true
+    );
+    this.rayTracingBindGroup.addBuffer(
+      this.sceneStatsBuffer,
       GPUShaderStage.COMPUTE,
       true
     );
@@ -165,7 +266,8 @@ class RayTracerBase implements Renderer {
     const device = await adapter.requestDevice({
       requiredLimits: {
         maxStorageBufferBindingSize:
-          this.options.maxStorageBufferBindingSize ?? 128 * 1024 * 1024,
+          this.options.maxStorageBufferBindingSize ??
+          DEFAULT_MAX_STORAGE_BUFFER_BINDING_SIZE,
       },
     });
     if (!device) throw Error('Could not request WebGPU logical device.');
@@ -306,19 +408,22 @@ class RayTracerBase implements Renderer {
     this.frameCount++;
     camera.aspectRatio = this.canvas.width / this.canvas.height;
 
+    const sceneChanged = scene.stats.isOutdated;
     const renderData: RenderData = {
       device: this.device!,
       canvas: this.canvas,
       frameCount: this.frameCount,
       camera,
-      scene: SceneUtils.getData(scene, true),
+      scene: SceneUtils.getData(scene, this.capacities, true),
+      sceneStats: scene.stats,
+      renderer: this,
       viewport: ViewportUtils.getData(camera, this.canvas),
-      sceneChanged: !this.vertexBuffer.gpuObject || scene.stats.isOutdated,
+      sceneChanged,
     };
 
     this.buffers
-      .filter(buffer => buffer.options.onBeforeRender)
-      .forEach(buffer => buffer.options.onBeforeRender!(renderData, buffer));
+      .filter(buffer => buffer.onBeforeRender)
+      .forEach(buffer => buffer.onBeforeRender!(renderData, buffer));
 
     const encoder = this.device!.createCommandEncoder();
 

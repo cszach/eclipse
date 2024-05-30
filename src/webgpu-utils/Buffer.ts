@@ -9,6 +9,7 @@ enum BufferType {
   Vertex,
   Index,
   Material,
+  SceneStats,
 }
 
 type BufferOnBeforeRenderCallback = (
@@ -39,36 +40,12 @@ const predefinedOptions: {[type: number]: BufferOptions} = {
     wgslType: 'vec2u',
     usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
     staticSize: 2 * Uint32Array.BYTES_PER_ELEMENT,
-    onCanvasResize: (renderData, buffer) => {
-      console.log(renderData.canvas.width);
-      buffer.write(
-        new Uint32Array([renderData.canvas.width, renderData.canvas.height])
-      );
-    },
   },
   [BufferType.Frame]: {
     label: 'Frame buffer',
     wgslIdentifier: 'frame_buffer',
     wgslType: 'array<vec3f>',
     usage: GPUBufferUsage.STORAGE,
-    onBeforeRender: (renderData, buffer) => {
-      if (renderData.sceneChanged) {
-        buffer.size =
-          4 * // RGBA
-          Float32Array.BYTES_PER_ELEMENT *
-          renderData.canvas.width *
-          renderData.canvas.height;
-        buffer.build(renderData.device, true);
-      }
-    },
-    onCanvasResize: (resizeData, buffer) => {
-      buffer.size =
-        4 *
-        Float32Array.BYTES_PER_ELEMENT *
-        resizeData.canvas.width *
-        resizeData.canvas.height;
-      buffer.build(resizeData.device, true);
-    },
   },
   [BufferType.FrameCount]: {
     label: 'Frame count buffer',
@@ -76,9 +53,6 @@ const predefinedOptions: {[type: number]: BufferOptions} = {
     wgslType: 'u32',
     usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
     staticSize: 4,
-    onBeforeRender: (renderData, buffer) => {
-      buffer.write(new Uint32Array([renderData.frameCount]));
-    },
   },
   [BufferType.CameraPosition]: {
     label: 'Camera position buffer',
@@ -86,9 +60,6 @@ const predefinedOptions: {[type: number]: BufferOptions} = {
     wgslType: 'vec3f',
     usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
     staticSize: 3 * Float32Array.BYTES_PER_ELEMENT,
-    onBeforeRender: (renderData, buffer) => {
-      buffer.write(renderData.camera.localPosition); // FIXME: use global pos
-    },
   },
   [BufferType.Viewport]: {
     label: 'Viewport buffer',
@@ -96,16 +67,6 @@ const predefinedOptions: {[type: number]: BufferOptions} = {
     wgslType: 'Viewport',
     usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
     staticSize: (9 + 3) * Float32Array.BYTES_PER_ELEMENT,
-    onBeforeRender: (renderData, buffer) => {
-      const {origin, du, dv} = renderData.viewport;
-
-      // prettier-ignore
-      buffer.write(new Float32Array([
-        origin[0], origin[1], origin[2], 0,
-            du[0],     du[1],     du[2], 0,
-            dv[0],     dv[1],     dv[2], 0
-      ]))
-    },
   },
   [BufferType.Vertex]: {
     label: 'Vertex buffer',
@@ -113,13 +74,6 @@ const predefinedOptions: {[type: number]: BufferOptions} = {
     wgslType: 'array<Vertex>',
     usage: GPUBufferUsage.STORAGE,
     mappedAtCreation: true,
-    onBeforeRender: (renderData, buffer) => {
-      if (renderData.sceneChanged) {
-        buffer.size = renderData.scene.vertexData.byteLength;
-        buffer.build(renderData.device, true);
-        buffer.writeMapped(renderData.scene.vertexData);
-      }
-    },
   },
   [BufferType.Index]: {
     label: 'Index buffer',
@@ -127,13 +81,6 @@ const predefinedOptions: {[type: number]: BufferOptions} = {
     wgslType: 'array<Triangle>',
     usage: GPUBufferUsage.STORAGE,
     mappedAtCreation: true,
-    onBeforeRender: (renderData, buffer) => {
-      if (renderData.sceneChanged) {
-        buffer.size = renderData.scene.indexData.byteLength;
-        buffer.build(renderData.device, true);
-        buffer.writeMapped(renderData.scene.indexData);
-      }
-    },
   },
   [BufferType.Material]: {
     label: 'Material buffer',
@@ -141,19 +88,21 @@ const predefinedOptions: {[type: number]: BufferOptions} = {
     wgslType: 'array<Material>',
     usage: GPUBufferUsage.STORAGE,
     mappedAtCreation: true,
-    onBeforeRender: (renderData, buffer) => {
-      if (renderData.sceneChanged) {
-        buffer.size = renderData.scene.materialData.byteLength;
-        buffer.build(renderData.device, true);
-        buffer.writeMapped(renderData.scene.materialData);
-      }
-    },
+  },
+  [BufferType.SceneStats]: {
+    label: 'Scene stats buffer',
+    wgslIdentifier: 'scene_stats',
+    wgslType: 'SceneStats',
+    usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
+    staticSize: 4 * Uint32Array.BYTES_PER_ELEMENT,
   },
 };
 
 class Buffer {
   options: BufferOptions;
   size?: number;
+  onBeforeRender?: BufferOnBeforeRenderCallback;
+  onCanvasResize?: BufferOnCanvasResizeCallback;
   device?: GPUDevice;
   gpuObject?: GPUBuffer;
   static readonly predefinedOptions = predefinedOptions;
@@ -241,6 +190,21 @@ class Buffer {
       dataOffset
     );
     this.gpuObject.unmap();
+  }
+
+  // TODO: growing might exceed the max storage buffer size
+  grow(capacity: number, growFactor = 2): boolean {
+    if (this.size === undefined) {
+      throw new Error(`Buffer "${this.options.label}" does not have a size.`);
+    }
+
+    if (this.size > capacity) return false;
+
+    while (this.size < capacity) {
+      this.size *= growFactor;
+    }
+
+    return true;
   }
 }
 

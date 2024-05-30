@@ -29,3 +29,10 @@ struct AABB {
   right_child_index: u32,
   object_index: u32,
 }
+
+struct SceneStats {
+  meshes: u32,
+  vertices: u32,
+  triangles: u32,
+  lights: u32,
+}

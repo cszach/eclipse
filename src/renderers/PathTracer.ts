@@ -29,7 +29,8 @@ class PathTracer extends RayTracerBase {
       this.viewportBuffer,
       this.vertexBuffer,
       this.indexBuffer,
-      this.materialBuffer
+      this.materialBuffer,
+      this.sceneStatsBuffer
     );
 
     const rayTracingPipeline = new ComputePipeline({
@@ -60,6 +61,7 @@ class PathTracer extends RayTracerBase {
 
     Promise.resolve(this.init()).then(() => {
       this.observeCanvasResize = this._observeCanvasResize;
+      this.onCanvasResize(); // TODO: should we call this here?
 
       if (this.animationFrame) {
         window.requestAnimationFrame(this.animationFrame);
@@ -87,9 +89,9 @@ class PathTracer extends RayTracerBase {
     }
 
     this.buffers
-      .filter(buffer => buffer.options.onCanvasResize)
+      .filter(buffer => buffer.onCanvasResize)
       .forEach(buffer =>
-        buffer.options.onCanvasResize!(
+        buffer.onCanvasResize!(
           {
             canvas: this.canvas,
             device: this.device!,

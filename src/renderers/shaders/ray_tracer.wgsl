@@ -18,7 +18,7 @@ struct HitRecord {
   material_index: f32,
 }
 
-const NUM_PIXEL_SAMPLES = 4u;
+const NUM_PIXEL_SAMPLES = 1u;
 
 @compute @workgroup_size(8, 8)
 fn rayTrace(@builtin(global_invocation_id) pixel: vec3u) {
@@ -43,7 +43,7 @@ fn rayTrace(@builtin(global_invocation_id) pixel: vec3u) {
       var closest_hit: HitRecord;
       closest_hit.t = MAX_F32;
 
-      for (var i = 0u; i < arrayLength(&triangles); i++) {
+      for (var i = 0u; i < scene_stats.triangles; i++) {
         if rayIntersectsTriangle(ray, triangles[i], &hit_record)
           && hit_record.t < closest_hit.t
           && dot(hit_record.normal, ray.direction) < 0 {
