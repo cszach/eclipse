@@ -9,7 +9,7 @@ import {
   DEFAULT_VERTEX_CAPACITY,
   DEFAULT_TRIANGLE_CAPACITY,
   DEFAULT_MATERIAL_CAPACITY,
-  DEFAULT_OBJECT_CAPACITY,
+  DEFAULT_MESH_CAPACITY,
 } from './exports.js';
 import {
   Buffer,
@@ -46,6 +46,8 @@ class RayTracerBase implements Renderer {
   vertexBuffer: Buffer;
   indexBuffer: Buffer;
   materialBuffer: Buffer;
+  worldMatrixBuffer: Buffer;
+  normalMatrixBuffer: Buffer;
   sceneStatsBuffer: Buffer;
   rayTracingBindGroup: BindGroup;
   private capacities: Capacities;
@@ -64,7 +66,7 @@ class RayTracerBase implements Renderer {
       vertices: options.initialCapacities?.vertices ?? DEFAULT_VERTEX_CAPACITY,
       triangles:
         options.initialCapacities?.triangles ?? DEFAULT_TRIANGLE_CAPACITY,
-      objects: options.initialCapacities?.objects ?? DEFAULT_OBJECT_CAPACITY,
+      meshes: options.initialCapacities?.meshes ?? DEFAULT_MESH_CAPACITY,
       materials:
         options.initialCapacities?.materials ?? DEFAULT_MATERIAL_CAPACITY,
     };
@@ -141,6 +143,30 @@ class RayTracerBase implements Renderer {
       }
     };
 
+    this.worldMatrixBuffer = Buffer.ofType(BufferType.WorldMatrix);
+    this.worldMatrixBuffer.size =
+      this.capacities.meshes * 16 * Float32Array.BYTES_PER_ELEMENT;
+    this.worldMatrixBuffer.onBeforeRender = (data, buffer) => {
+      if (data.sceneChanged) {
+        const grown = buffer.grow(data.scene.worldMatrixData.byteLength);
+        buffer.build(data.device, grown);
+        buffer.writeMapped(data.scene.worldMatrixData);
+        this.rayTracingBindGroup.build(data.device);
+      }
+    };
+
+    this.normalMatrixBuffer = Buffer.ofType(BufferType.NormalMatrix);
+    this.normalMatrixBuffer.size =
+      this.capacities.meshes * 16 * Float32Array.BYTES_PER_ELEMENT;
+    this.normalMatrixBuffer.onBeforeRender = (data, buffer) => {
+      if (data.sceneChanged) {
+        const grown = buffer.grow(data.scene.normalMatrixData.byteLength);
+        buffer.build(data.device, grown);
+        buffer.writeMapped(data.scene.normalMatrixData);
+        this.rayTracingBindGroup.build(data.device);
+      }
+    };
+
     this.sceneStatsBuffer = Buffer.ofType(BufferType.SceneStats);
     this.sceneStatsBuffer.onBeforeRender = (data, buffer) => {
       buffer.build(data.device);
@@ -193,6 +219,16 @@ class RayTracerBase implements Renderer {
     );
     this.rayTracingBindGroup.addBuffer(
       this.materialBuffer,
+      GPUShaderStage.COMPUTE,
+      true
+    );
+    this.rayTracingBindGroup.addBuffer(
+      this.worldMatrixBuffer,
+      GPUShaderStage.COMPUTE,
+      true
+    );
+    this.rayTracingBindGroup.addBuffer(
+      this.normalMatrixBuffer,
       GPUShaderStage.COMPUTE,
       true
     );

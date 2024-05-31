@@ -9,6 +9,8 @@ enum BufferType {
   Vertex,
   Index,
   Material,
+  WorldMatrix,
+  NormalMatrix,
   SceneStats,
 }
 
@@ -89,11 +91,25 @@ const predefinedOptions: {[type: number]: BufferOptions} = {
     usage: GPUBufferUsage.STORAGE,
     mappedAtCreation: true,
   },
+  [BufferType.WorldMatrix]: {
+    label: 'World matrix buffer',
+    wgslIdentifier: 'world_matrices',
+    wgslType: 'array<mat4x4f>',
+    usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
+    mappedAtCreation: true,
+  },
+  [BufferType.NormalMatrix]: {
+    label: 'Normal matrix buffer',
+    wgslIdentifier: 'normal_matrices',
+    wgslType: 'array<mat4x4f>',
+    usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
+    mappedAtCreation: true,
+  },
   [BufferType.SceneStats]: {
     label: 'Scene stats buffer',
     wgslIdentifier: 'scene_stats',
     wgslType: 'SceneStats',
-    usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
+    usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
     staticSize: 4 * Uint32Array.BYTES_PER_ELEMENT,
   },
 };

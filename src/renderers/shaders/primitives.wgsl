@@ -7,7 +7,7 @@ struct Vertex {
 
 struct Triangle {
   indices: vec3u,
-  worldMatrixIndex: u32,
+  matrix_index: u32,
 }
 
 struct Material {

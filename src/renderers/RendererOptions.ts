@@ -1,7 +1,7 @@
 type Capacities = {
   vertices: number;
   triangles: number;
-  objects: number;
+  meshes: number;
   materials: number;
 };
 

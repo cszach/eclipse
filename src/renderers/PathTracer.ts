@@ -30,6 +30,8 @@ class PathTracer extends RayTracerBase {
       this.vertexBuffer,
       this.indexBuffer,
       this.materialBuffer,
+      this.worldMatrixBuffer,
+      this.normalMatrixBuffer,
       this.sceneStatsBuffer
     );
 

@@ -109,8 +109,15 @@ fn rayIntersectsTriangle(
   hit_record_ptr: ptr<function, HitRecord>
 ) -> bool {
   let indices = triangle.indices;
-  let edge1 = vertices[indices.y].position - vertices[indices.x].position;
-  let edge2 = vertices[indices.z].position - vertices[indices.x].position;
+  let world_matrix = world_matrices[triangle.matrix_index];
+  let normal_matrix = normal_matrices[triangle.matrix_index];
+
+  let point1 = (world_matrix * vec4f(vertices[indices.x].position, 1)).xyz;
+  let point2 = (world_matrix * vec4f(vertices[indices.y].position, 1)).xyz;
+  let point3 = (world_matrix * vec4f(vertices[indices.z].position, 1)).xyz;
+
+  let edge1 = point2 - point1;
+  let edge2 = point3 - point1;
   let ray_cross_edge2 = cross(ray.direction, edge2);
   let determinant = dot(edge1, ray_cross_edge2);
 
@@ -120,7 +127,7 @@ fn rayIntersectsTriangle(
   }
 
   let determinant_inverse = 1.0 / determinant;
-  let s = ray.origin - vertices[indices.x].position;
+  let s = ray.origin - point1;
   let u = determinant_inverse * dot(s, ray_cross_edge2);
 
   if u < 0 || u > 1 {
@@ -139,9 +146,9 @@ fn rayIntersectsTriangle(
   if t > EPSILON { // Hit
     // Interpolate surface normal
 
-    let na = vertices[indices.x].normal;
-    let nb = vertices[indices.y].normal;
-    let nc = vertices[indices.z].normal;
+    let na = (normal_matrix * vec4f(vertices[indices.x].normal, 0)).xyz;
+    let nb = (normal_matrix * vec4f(vertices[indices.y].normal, 0)).xyz;
+    let nc = (normal_matrix * vec4f(vertices[indices.z].normal, 0)).xyz;
     let surface_normal = u * na + v * nb + (1 - u - v) * nc;
 
     (*hit_record_ptr).t = t;
