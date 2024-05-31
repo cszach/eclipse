@@ -1,5 +1,5 @@
-import {mat4, quat, vec3} from 'wgpu-matrix';
-import {Group, Mesh, Scene} from '../../primitives/exports.js';
+import {mat4, quat} from 'wgpu-matrix';
+import {Mesh, Scene} from '../../primitives/exports.js';
 import {
   BLINN_PHONG,
   BlinnPhong,
@@ -37,7 +37,7 @@ class SceneUtils {
     let vertexIndex = 0;
     let indexIndex = 0;
     let materialIndex = 0;
-    let worldMatrixIndex = 0;
+    let matrixIndex = 0;
 
     scene.traverse((group, globalPosition, globalRotation, globalScale) => {
       if (!(group instanceof Mesh)) {
@@ -50,7 +50,7 @@ class SceneUtils {
         indexData[indexIndex * 4 + 0] = indices[0] + vertexIndex;
         indexData[indexIndex * 4 + 1] = indices[1] + vertexIndex;
         indexData[indexIndex * 4 + 2] = indices[2] + vertexIndex;
-        indexData[indexIndex * 4 + 3] = worldMatrixIndex;
+        indexData[indexIndex * 4 + 3] = matrixIndex;
 
         indexIndex++;
       });
@@ -122,8 +122,10 @@ class SceneUtils {
       const normalMatrix = mat4.invert(worldMatrix);
       mat4.transpose(normalMatrix, normalMatrix);
 
-      worldMatrixData.set(worldMatrix, worldMatrixIndex * 16);
-      normalMatrixData.set(normalMatrix, worldMatrixIndex++ * 16);
+      worldMatrixData.set(worldMatrix, matrixIndex * 16);
+      normalMatrixData.set(normalMatrix, matrixIndex * 16);
+
+      matrixIndex++;
     });
 
     return {
