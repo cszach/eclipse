@@ -111,7 +111,7 @@ class RayTracerBase implements Renderer {
     };
 
     this.vertexBuffer = Buffer.ofType(BufferType.Vertex);
-    this.vertexBuffer.size = DEFAULT_VERTEX_CAPACITY * 12 * 4;
+    this.vertexBuffer.size = this.capacities.vertices * 12 * 4;
     this.vertexBuffer.onBeforeRender = (data, buffer) => {
       if (data.sceneChanged) {
         const grown = buffer.grow(data.scene.vertexData.byteLength);
@@ -122,7 +122,7 @@ class RayTracerBase implements Renderer {
     };
 
     this.indexBuffer = Buffer.ofType(BufferType.Index);
-    this.indexBuffer.size = DEFAULT_TRIANGLE_CAPACITY * 4 * 4;
+    this.indexBuffer.size = this.capacities.triangles * 4 * 4;
     this.indexBuffer.onBeforeRender = (data, buffer) => {
       if (data.sceneChanged) {
         const grown = buffer.grow(data.scene.indexData.byteLength);
@@ -133,7 +133,7 @@ class RayTracerBase implements Renderer {
     };
 
     this.materialBuffer = Buffer.ofType(BufferType.Material);
-    this.materialBuffer.size = DEFAULT_MATERIAL_CAPACITY * 8 * 4;
+    this.materialBuffer.size = this.capacities.materials * 8 * 4;
     this.materialBuffer.onBeforeRender = (data, buffer) => {
       if (data.sceneChanged) {
         const grown = buffer.grow(data.scene.materialData.byteLength);
