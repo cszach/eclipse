@@ -1,13 +1,10 @@
-import {vec3, quat, Vec3, mat4} from 'wgpu-matrix';
-import {UP} from '../constants.js';
+import {vec3, quat, Quat, Vec3} from 'wgpu-matrix';
 
 class Group {
   children: Group[];
   localPosition: Vec3;
-  localQuaternion: quat;
+  localQuaternion: Quat;
   localScale: Vec3;
-
-  static readonly DEFAULT_UP: vec3 = vec3.create(0, 1, 0);
 
   constructor() {
     this.children = [];
