@@ -130,6 +130,8 @@ class Buffer {
   constructor(options: BufferOptions) {
     this.options = options;
     this.size = options.staticSize;
+    this.onBeforeRender = this.options.onBeforeRender;
+    this.onCanvasResize = this.options.onCanvasResize;
   }
 
   get isDynamic(): boolean {
