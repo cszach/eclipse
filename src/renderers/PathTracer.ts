@@ -1,12 +1,20 @@
-import {ComputeFor, ComputePipeline} from '../webgpu-utils/exports.js';
+import {
+  BindGroup,
+  Buffer,
+  ComputeFor,
+  ComputePipeline,
+} from '../webgpu-utils/exports.js';
 import {RayTracerBase} from './RayTracerBase.js';
 import {RendererOptions} from './RendererOptions.js';
 
-// Shaders
-import constants from './shaders/constants.wgsl';
-import primitives from './shaders/primitives.wgsl';
-import random from './shaders/random.wgsl';
-import rayTracerShader from './shaders/ray_tracer.wgsl';
+// WGSL
+import {
+  constantsWgsl,
+  primitivesWgsl,
+  randomWgsl,
+  rayTracerWgsl,
+  hlbvhWgsl,
+} from './shaders/exports.js';
 
 class PathTracer extends RayTracerBase {
   private _observeCanvasResize = true;
@@ -21,6 +29,75 @@ class PathTracer extends RayTracerBase {
       false
     );
 
+    // BVH construction
+
+    const bvhConstructionBindGroup = new BindGroup({
+      label: 'BVH construction bind group',
+    });
+
+    const bvhBuffer = new Buffer({
+      label: 'BVH buffer',
+      wgslIdentifier: 'bvh',
+      wgslType: 'array<AABB>',
+      usage: GPUBufferUsage.STORAGE,
+      onBeforeRender: (data, buffer) => {
+        buffer.size = (data.sceneStats.triangles * 2 - 1) * 12 * 4;
+        buffer.build(data.device);
+      },
+    });
+
+    const mortonCodeBuffer = new Buffer({
+      label: 'Morton code buffer',
+      wgslIdentifier: 'morton_codes',
+      wgslType: 'array<u32>',
+      usage: GPUBufferUsage.STORAGE,
+      onBeforeRender: (data, buffer) => {
+        buffer.size = data.sceneStats.triangles * 4;
+        buffer.build(data.device);
+        bvhConstructionBindGroup.build(data.device);
+      },
+    });
+
+    bvhConstructionBindGroup.addBuffer(
+      bvhBuffer,
+      GPUShaderStage.COMPUTE,
+      false
+    );
+    bvhConstructionBindGroup.addBuffer(
+      mortonCodeBuffer,
+      GPUShaderStage.COMPUTE,
+      false
+    );
+    bvhConstructionBindGroup.addBuffer(
+      this.sceneStatsBuffer,
+      GPUShaderStage.COMPUTE,
+      true
+    );
+    bvhConstructionBindGroup.addBuffer(
+      this.vertexBuffer,
+      GPUShaderStage.COMPUTE,
+      true
+    );
+    bvhConstructionBindGroup.addBuffer(
+      this.indexBuffer,
+      GPUShaderStage.COMPUTE,
+      true
+    );
+    bvhConstructionBindGroup.addBuffer(
+      this.worldMatrixBuffer,
+      GPUShaderStage.COMPUTE,
+      true
+    );
+
+    const mortonCodeAssignmentPipeline = new ComputePipeline({
+      label: 'Morton code assignment pipeline',
+      bindGroups: [bvhConstructionBindGroup],
+      code: constantsWgsl + primitivesWgsl + hlbvhWgsl,
+      entryPoint: 'assignMortonCodes',
+      workgroupSize: {x: 64},
+      frequency: ComputeFor.Every512Triangle,
+    });
+
     this.buffers.push(
       this.frameResolutionBuffer,
       this.frameBuffer,
@@ -32,18 +109,21 @@ class PathTracer extends RayTracerBase {
       this.materialBuffer,
       this.worldMatrixBuffer,
       this.normalMatrixBuffer,
-      this.sceneStatsBuffer
+      this.sceneStatsBuffer,
+      bvhBuffer,
+      mortonCodeBuffer
     );
 
     const rayTracingPipeline = new ComputePipeline({
       label: 'Ray tracing pipeline',
       bindGroups: [this.rayTracingBindGroup],
-      code: constants + primitives + random + rayTracerShader,
+      code: constantsWgsl + primitivesWgsl + randomWgsl + rayTracerWgsl,
       entryPoint: 'rayTrace',
       workgroupSize: {x: 8, y: 8},
       frequency: ComputeFor.EveryPixel,
     });
 
+    this.addPipeline(mortonCodeAssignmentPipeline);
     this.addPipeline(rayTracingPipeline);
 
     // Resize observer

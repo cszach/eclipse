@@ -101,13 +101,13 @@ fn unionAabb(a: AABB, b: AABB) -> AABB {
 }
 
 @compute @workgroup_size(64)
-fn computeSceneBoundingBox(
+fn assignMortonCodes(
   @builtin(global_invocation_id) gid: vec3u,
   @builtin(local_invocation_id) lid: vec3u,
   @builtin(num_workgroups) num_workgroups: vec3u,
 ) {
   var i = gid.x * 512;
-  let end = min(i + 512, arrayLength(&triangles));
+  let end = min(i + 512, scene_stats.triangles);
 
   var aabb: AABB;
   aabb.min = vec3f(MAX_F32);
@@ -115,10 +115,11 @@ fn computeSceneBoundingBox(
 
   for (i = i; i < end; i++) {
     let triangle = triangles[i];
+    let world_matrix = world_matrices[i];
 
-    let vertexA = vertices[triangle.x].position;
-    let vertexB = vertices[triangle.y].position;
-    let vertexC = vertices[triangle.z].position;
+    let vertexA = (world_matrix * vec4f(vertices[triangle.indices.x].position, 1)).xyz;
+    let vertexB = (world_matrix * vec4f(vertices[triangle.indices.y].position, 1)).xyz;
+    let vertexC = (world_matrix * vec4f(vertices[triangle.indices.z].position, 1)).xyz;
 
     let centroid = (vertexA + vertexB + vertexC) / 3.0;
 
@@ -140,6 +141,8 @@ fn computeSceneBoundingBox(
   // Combine results from all workgroups
   storageBarrier();
 
+  var scene_aabb: AABB;
+
   if gid.x == 0 {
     aabb.min = vec3f(MAX_F32);
     aabb.max = vec3f(MIN_F32);
@@ -159,22 +162,14 @@ fn computeSceneBoundingBox(
 
   for (i = i; i < end; i++) {
     let triangle = triangles[i];
+    let world_matrix = world_matrices[i];
 
-    let vertexA = vertices[triangle.x].position;
-    let vertexB = vertices[triangle.y].position;
-    let vertexC = vertices[triangle.z].position;
+    let vertexA = (world_matrix * vec4f(vertices[triangle.indices.x].position, 1)).xyz;
+    let vertexB = (world_matrix * vec4f(vertices[triangle.indices.y].position, 1)).xyz;
+    let vertexC = (world_matrix * vec4f(vertices[triangle.indices.z].position, 1)).xyz;
 
     let centroid = (vertexA + vertexB + vertexC) / 3.0 + abs(scene_aabb.min);
 
     let morton_code = mortonCode(centroid / scene_aabb_size);
-  }
-}
-
-@compute @workgroup_size(64)
-fn assignMortonCodes(@builtin(global_invocation_id) object: vec3u) {
-  let object_index = object.x;
-
-  if object_index >= arrayLength(&triangles) {
-    return;
   }
 }
