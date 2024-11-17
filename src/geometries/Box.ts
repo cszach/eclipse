@@ -101,9 +101,23 @@ class Box extends Geometry {
          1, 0, 0, 0, -1, 0, 0, 0, -1, // v7
     ]);
 
+    // prettier-ignore
+    const uvs = new Float32Array([
+    //   X|    Y|    Z|
+      0, 1, 1, 0, 1, 1, // v0
+      1, 1, 0, 0, 0, 1, // v1
+      0, 1, 0, 1, 1, 1, // v2
+      1, 1, 1, 1, 0, 1, // v3
+      0, 0, 1, 1, 1, 0, // v4
+      1, 0, 0, 1, 0, 0, // v5
+      0, 0, 0, 0, 1, 0, // v6
+      1, 0, 0, 1, 0, 0, // v7
+    ]);
+
     this.setVertices(vertices);
     this.setIndices(indices);
     this.setVertexNormals(vertexNormals);
+    this.setUVs(uvs);
   }
 }
 

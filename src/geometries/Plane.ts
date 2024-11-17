@@ -54,9 +54,19 @@ class Plane extends Geometry {
          0, 0, 1, /* 0, 0, -1, */ // v3
     ]);
 
+    // prettier-ignore
+    const uvs = new Float32Array([
+      // X| Y
+         1, 1, // v0
+         0, 1, // v1
+         0, 0, // v2
+         1, 0, // v3
+    ]);
+
     this.setVertices(vertices);
     this.setIndices(indices);
     this.setVertexNormals(vertexNormals);
+    this.setUVs(uvs);
   }
 }
 

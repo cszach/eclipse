@@ -50,24 +50,24 @@ class Geometry {
       uv: vec2
     ) => void
   ) {
-    for (let i = 0; i < this.vertexPositions.length; i += 3) {
+    for (let i = 0; i < this.vertexPositions.length / 3; i++) {
       callback(
         // index
-        i / 3,
+        i,
         // local position
         vec3.create(
-          this.vertexPositions[i + 0],
-          this.vertexPositions[i + 1],
-          this.vertexPositions[i + 2]
+          this.vertexPositions[i * 3 + 0],
+          this.vertexPositions[i * 3 + 1],
+          this.vertexPositions[i * 3 + 2]
         ),
         // normal
         vec3.create(
-          this.vertexNormals[i + 0],
-          this.vertexNormals[i + 1],
-          this.vertexNormals[i + 2]
+          this.vertexNormals[i * 3 + 0],
+          this.vertexNormals[i * 3 + 1],
+          this.vertexNormals[i * 3 + 2]
         ),
         // uv
-        vec2.create(this.uvs[i], this.uvs[i + 1])
+        vec2.create(this.uvs[i * 2 + 0], this.uvs[i * 2 + 1])
       );
     }
   }

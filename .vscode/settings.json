@@ -4,7 +4,8 @@
     "webgpu-utils",
     "renderers/utils",
     "cameras",
-    "primitives"
+    "primitives",
+    "textures"
   ],
   "[wgsl]": {
     "editor.formatOnSave": false

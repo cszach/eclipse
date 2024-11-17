@@ -8,29 +8,29 @@ import {
   METAL,
   SolidColor,
 } from '../../materials/exports.js';
-import {Capacities} from '../exports.js';
+import {Texture} from '../../textures/Texture.js';
+import {MaxRectsPacker} from 'maxrects-packer';
 
 type SceneData = {
   vertexData: Float32Array;
   indexData: Uint32Array;
   materialData: Float32Array;
+  textureData: Float32Array;
   worldMatrixData: Float32Array;
   normalMatrixData: Float32Array;
+  textures: Texture[];
 };
 
 class SceneUtils {
-  static getData(
-    scene: Scene,
-    capacities: Capacities,
-    updateStats = false
-  ): SceneData {
+  static getData(scene: Scene, updateStats = false): SceneData {
     if (updateStats && scene.stats.isOutdated) {
       scene.updateStats();
     }
 
     const vertexData = new Float32Array(scene.stats.vertices * 12);
     const indexData = new Uint32Array(scene.stats.triangles * 4);
-    const materialData = new Float32Array(scene.stats.meshes * 8);
+    const materialData = new Float32Array(scene.stats.meshes * 16);
+    const textureData = new Float32Array(scene.stats.meshes * 4);
     const worldMatrixData = new Float32Array(scene.stats.meshes * 16);
     const normalMatrixData = new Float32Array(scene.stats.meshes * 16);
 
@@ -38,6 +38,9 @@ class SceneUtils {
     let indexIndex = 0;
     let materialIndex = 0;
     let matrixIndex = 0;
+
+    const textures: Texture[] = [];
+    const texturePacker = new MaxRectsPacker(4096, 4096, 0);
 
     scene.traverse((group, globalPosition, globalRotation, globalScale) => {
       if (!(group instanceof Mesh)) {
@@ -75,8 +78,10 @@ class SceneUtils {
       // Material
 
       let color = [0, 0, 0];
+      let colorMap: Texture | undefined;
       let specular = [0, 0, 0];
       let shininess = 0;
+      let colorMapIndex = -1;
 
       if (mesh.material.type < 5) {
         const coloredMaterial = mesh.material as
@@ -86,6 +91,22 @@ class SceneUtils {
           | Metal;
 
         color = coloredMaterial.color;
+        colorMap = coloredMaterial.colorMap;
+
+        if (colorMap) {
+          colorMapIndex = textures.findIndex(texture => texture === colorMap);
+
+          if (colorMapIndex === -1) {
+            textures.push(colorMap);
+            colorMapIndex = textures.length - 1;
+
+            texturePacker.add({
+              width: colorMap.width,
+              height: colorMap.height,
+              image: colorMap.image,
+            });
+          }
+        }
       }
 
       if (mesh.material.type === BLINN_PHONG) {
@@ -101,14 +122,22 @@ class SceneUtils {
         shininess = metalMaterial.fuzziness;
       }
 
-      materialData[materialIndex * 8 + 0] = color[0];
-      materialData[materialIndex * 8 + 1] = color[1];
-      materialData[materialIndex * 8 + 2] = color[2];
-      materialData[materialIndex * 8 + 3] = shininess;
-      materialData[materialIndex * 8 + 4] = specular[0];
-      materialData[materialIndex * 8 + 5] = specular[1];
-      materialData[materialIndex * 8 + 6] = specular[2];
-      materialData[materialIndex * 8 + 7] = mesh.material.type;
+      materialData[materialIndex * 16 + 0] = color[0];
+      materialData[materialIndex * 16 + 1] = color[1];
+      materialData[materialIndex * 16 + 2] = color[2];
+      materialData[materialIndex * 16 + 3] = shininess;
+      materialData[materialIndex * 16 + 4] = specular[0];
+      materialData[materialIndex * 16 + 5] = specular[1];
+      materialData[materialIndex * 16 + 6] = specular[2];
+      materialData[materialIndex * 16 + 7] = colorMapIndex;
+      materialData[materialIndex * 16 + 8] = mesh.material.type;
+      materialData[materialIndex * 16 + 9] = 0; // Pad
+      materialData[materialIndex * 16 + 10] = 0; // Pad
+      materialData[materialIndex * 16 + 11] = 0; // Pad
+      materialData[materialIndex * 16 + 12] = 0; // Pad
+      materialData[materialIndex * 16 + 13] = 0; // Pad
+      materialData[materialIndex * 16 + 14] = 0; // Pad
+      materialData[materialIndex * 16 + 15] = 0; // Pad
 
       materialIndex++;
 
@@ -128,12 +157,28 @@ class SceneUtils {
       matrixIndex++;
     });
 
+    for (let i = 0; i < materialIndex; i++) {
+      const colorMapIndex = materialData[i * 16 + 7];
+
+      if (colorMapIndex !== -1 && texturePacker.bins[0]) {
+        const colorMap = textures[colorMapIndex];
+        const rect = texturePacker.bins[0].rects[colorMapIndex];
+
+        materialData[i * 16 + 9] = colorMap.xOnAtlas = rect.x;
+        materialData[i * 16 + 10] = colorMap.yOnAtlas = rect.y;
+        materialData[i * 16 + 11] = colorMap.widthOnAtlas = rect.width;
+        materialData[i * 16 + 12] = colorMap.heightOnAtlas = rect.height;
+      }
+    }
+
     return {
       vertexData,
       indexData,
       materialData,
+      textureData,
       worldMatrixData,
       normalMatrixData,
+      textures,
     };
   }
 }

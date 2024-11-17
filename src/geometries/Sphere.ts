@@ -51,7 +51,7 @@ class Sphere extends Geometry {
     // 0-1-2-0
     // |/|/|/|
     // 3-4-5-3   <--- UV sphere when stretched into a rectangle
-    // |/|/|/|
+    // |/|/|/|        (numbers are in place of vertices)
     // 6-7-8-6
     const indices = new Uint32Array(3 * 2 * widthSegments * heightSegments);
 

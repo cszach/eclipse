@@ -14,7 +14,19 @@ struct Material {
   color: vec3f,
   shininess: f32,
   specular: vec3f,
+  color_map_index: f32,
   type_id: f32,
+  color_map_x: f32,
+  color_map_y: f32,
+  color_map_width: f32,
+  color_map_height: f32,
+}
+
+struct Texture {
+  top_left_x: f32,
+  top_left_y: f32,
+  width: f32,
+  height: f32,
 }
 
 struct Ray {

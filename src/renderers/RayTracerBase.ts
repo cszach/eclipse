@@ -17,14 +17,17 @@ import {
   BindGroup,
   ComputePipeline,
   ComputeFor,
+  Sampler,
 } from '../webgpu-utils/exports.js';
 import {SceneUtils, ViewportUtils} from './utils/exports.js';
 
 // Shaders
 import {frameBufferViewWgsl} from './shaders/exports.js';
+import {TextureAtlas} from '../textures/TextureAtlas.js';
 
 class RayTracerBase implements Renderer {
   buffers: Buffer[];
+  textureAtlas?: TextureAtlas;
   bindGroups: BindGroup[];
   pipelines: ComputePipeline[];
 
@@ -117,7 +120,9 @@ class RayTracerBase implements Renderer {
         const grown = buffer.grow(data.scene.vertexData.byteLength);
         buffer.build(data.device, grown);
         buffer.writeMapped(data.scene.vertexData);
-        this.rayTracingBindGroup.build(data.device);
+        // this.rayTracingBindGroup.build(data.device);
+      } else {
+        buffer.gpuObject?.unmap();
       }
     };
 
@@ -128,18 +133,22 @@ class RayTracerBase implements Renderer {
         const grown = buffer.grow(data.scene.indexData.byteLength);
         buffer.build(data.device, grown);
         buffer.writeMapped(data.scene.indexData);
-        this.rayTracingBindGroup.build(data.device);
+        // this.rayTracingBindGroup.build(data.device);
+      } else {
+        buffer.gpuObject?.unmap();
       }
     };
 
     this.materialBuffer = Buffer.ofType(BufferType.Material);
-    this.materialBuffer.size = this.capacities.materials * 8 * 4;
+    this.materialBuffer.size = this.capacities.materials * 16 * 4;
     this.materialBuffer.onBeforeRender = (data, buffer) => {
       if (data.sceneChanged) {
         const grown = buffer.grow(data.scene.materialData.byteLength);
         buffer.build(data.device, grown);
         buffer.writeMapped(data.scene.materialData);
-        this.rayTracingBindGroup.build(data.device);
+        // this.rayTracingBindGroup.build(data.device);
+      } else {
+        buffer.gpuObject?.unmap();
       }
     };
 
@@ -151,7 +160,9 @@ class RayTracerBase implements Renderer {
         const grown = buffer.grow(data.scene.worldMatrixData.byteLength);
         buffer.build(data.device, grown);
         buffer.writeMapped(data.scene.worldMatrixData);
-        this.rayTracingBindGroup.build(data.device);
+        // this.rayTracingBindGroup.build(data.device);
+      } else {
+        buffer.gpuObject?.unmap();
       }
     };
 
@@ -163,7 +174,9 @@ class RayTracerBase implements Renderer {
         const grown = buffer.grow(data.scene.normalMatrixData.byteLength);
         buffer.build(data.device, grown);
         buffer.writeMapped(data.scene.normalMatrixData);
-        this.rayTracingBindGroup.build(data.device);
+        // this.rayTracingBindGroup.build(data.device);
+      } else {
+        buffer.gpuObject?.unmap();
       }
     };
 
@@ -178,6 +191,26 @@ class RayTracerBase implements Renderer {
           data.sceneStats.lights,
         ])
       );
+    };
+
+    // Texture atlas
+
+    this.textureAtlas = new TextureAtlas(4096, [], {
+      label: 'Texture atlas',
+      wgslIdentifier: 'texture_atlas',
+      wgslType: 'texture_2d<f32>',
+      usage:
+        GPUTextureUsage.TEXTURE_BINDING |
+        GPUTextureUsage.COPY_DST |
+        GPUTextureUsage.RENDER_ATTACHMENT,
+      format: 'rgba8unorm',
+    });
+    this.textureAtlas.onBeforeRender = (data, texture) => {
+      const atlas = texture as TextureAtlas;
+      atlas.reset();
+      data.scene.textures.forEach(texture => {
+        atlas.insert(texture);
+      });
     };
 
     // Ray tracing bind group
@@ -236,6 +269,18 @@ class RayTracerBase implements Renderer {
       this.sceneStatsBuffer,
       GPUShaderStage.COMPUTE,
       true
+    );
+    this.rayTracingBindGroup.addTexture(
+      this.textureAtlas,
+      GPUShaderStage.COMPUTE
+    );
+    this.rayTracingBindGroup.addSampler(
+      Sampler.fromTexture(this.textureAtlas, {
+        label: 'Texture atlas sampler',
+        wgslIdentifier: 'texture_atlas_sampler',
+        wgslType: 'sampler',
+      }),
+      GPUShaderStage.COMPUTE
     );
 
     this.buffers = [];
@@ -445,21 +490,35 @@ class RayTracerBase implements Renderer {
     camera.aspectRatio = this.canvas.width / this.canvas.height;
 
     const sceneChanged = scene.stats.isOutdated;
+    const sceneData = SceneUtils.getData(scene, true);
     const renderData: RenderData = {
       device: this.device!,
       canvas: this.canvas,
       frameCount: this.frameCount,
       camera,
-      scene: SceneUtils.getData(scene, this.capacities, true),
+      scene: sceneData,
       sceneStats: scene.stats,
       renderer: this,
       viewport: ViewportUtils.getData(camera, this.canvas),
       sceneChanged,
     };
 
+    sceneData.textures.forEach(texture => {
+      this.device?.queue.copyExternalImageToTexture(
+        {source: texture.image as GPUImageCopyExternalImageSource},
+        {
+          texture: this.textureAtlas?.gpuObject!,
+          origin: [texture.xOnAtlas, texture.yOnAtlas, 0],
+        },
+        [texture.widthOnAtlas, texture.heightOnAtlas]
+      );
+    });
+
     this.buffers
       .filter(buffer => buffer.onBeforeRender)
       .forEach(buffer => buffer.onBeforeRender!(renderData, buffer));
+
+    // this.textureAtlas?.onBeforeRender!(renderData, this.textureAtlas);
 
     const encoder = this.device!.createCommandEncoder();
 

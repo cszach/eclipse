@@ -1,14 +1,26 @@
-import {SOLID_COLOR} from './constants.js';
+import {Texture} from '../textures/Texture.js';
 import {Material} from './Material.js';
-import {vec3, Vec3} from 'wgpu-matrix';
+import {SOLID_COLOR} from './constants.js';
+import {Vec3} from 'wgpu-matrix';
+import {hexToRgb} from './utils.js';
 
 class SolidColor extends Material {
   override readonly type = SOLID_COLOR;
   color: Vec3;
+  colorMap?: Texture;
 
-  constructor(color: Vec3 = vec3.create(1, 1, 1)) {
+  constructor(color: string | Vec3, colorMap?: Texture) {
     super();
-    this.color = color;
+
+    if (typeof color === 'string') {
+      const {r, g, b} = hexToRgb(color);
+
+      this.color = [r / 255, g / 255, b / 255];
+    } else {
+      this.color = color;
+    }
+
+    this.colorMap = colorMap;
   }
 }
 

@@ -8,6 +8,9 @@ import primitives from './shaders/primitives.wgsl';
 import random from './shaders/random.wgsl';
 import rayTracerShader from './shaders/ray_tracer.wgsl';
 
+/**
+ * A Monte Carlo path tracer using uniform hemisphere sampling.
+ */
 class PathTracer extends RayTracerBase {
   private _observeCanvasResize = true;
   private canvasResizeObserver: ResizeObserver;
