@@ -1,5 +1,5 @@
 import {MaxRectsPacker, Rectangle} from 'maxrects-packer';
-import {Texture, TextureOptions} from './exports.js';
+import {Texture, TextureOptions} from './Texture.js';
 
 class TextureAtlas extends Texture {
   private packer: MaxRectsPacker;

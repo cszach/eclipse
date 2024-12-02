@@ -1,5 +1,5 @@
 import {mat4} from 'wgpu-matrix';
-import {Group} from '../primitives/exports.js';
+import {Group} from '../primitives/Group.js';
 
 interface Camera extends Group {
   projectionMatrix: mat4;

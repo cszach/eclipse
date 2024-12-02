@@ -1,7 +1,8 @@
-import {Camera} from '../cameras/exports.js';
-import {SceneStats} from '../primitives/exports.js';
-import {Renderer, ViewportData} from './exports.js';
-import {SceneData} from './utils/exports.js';
+import {Camera} from '../cameras/Camera.js';
+import {SceneStats} from '../primitives/Scene.js';
+import {Renderer} from './Renderer.js';
+import {ViewportData} from './utils/ViewportUtils.js';
+import {SceneData} from './utils/SceneUtils.js';
 
 type RenderData = {
   readonly device: GPUDevice;

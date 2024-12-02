@@ -1,4 +1,5 @@
-import {RenderData, ResizeData} from '../renderers/exports.js';
+import {RenderData} from '../renderers/RenderData.js';
+import {ResizeData} from '../renderers/ResizeData.js';
 
 enum BufferType {
   FrameResolution,

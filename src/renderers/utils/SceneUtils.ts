@@ -1,13 +1,11 @@
 import {mat4, quat} from 'wgpu-matrix';
-import {Mesh, Scene} from '../../primitives/exports.js';
-import {
-  BLINN_PHONG,
-  BlinnPhong,
-  Lambert,
-  Metal,
-  METAL,
-  SolidColor,
-} from '../../materials/exports.js';
+import {Scene} from '../../primitives/Scene.js';
+import {Mesh} from '../../primitives/Mesh.js';
+import {BLINN_PHONG, METAL} from '../../materials/constants.js';
+import {BlinnPhong} from '../../materials/BlinnPhong.js';
+import {Lambert} from '../../materials/Lambert.js';
+import {Metal} from '../../materials/Metal.js';
+import {SolidColor} from '../../materials/SolidColor.js';
 import {Texture} from '../../textures/Texture.js';
 import {MaxRectsPacker} from 'maxrects-packer';
 

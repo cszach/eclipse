@@ -5,7 +5,7 @@ class Box extends Geometry {
   readonly height: number;
   readonly depth: number;
 
-  constructor(width: number, height: number, depth: number) {
+  constructor(width: number = 1, height: number = 1, depth: number = 1) {
     super();
 
     this.width = width;

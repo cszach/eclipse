@@ -1,28 +1,24 @@
-import {PerspectiveCamera} from '../cameras/exports.js';
-import {Scene} from '../primitives/exports.js';
+import {PerspectiveCamera} from '../cameras/PerspectiveCamera.js';
+import {Scene} from '../primitives/Scene.js';
 import {
-  Capacities,
-  Renderer,
-  RenderData,
-  RendererOptions,
   DEFAULT_MAX_STORAGE_BUFFER_BINDING_SIZE,
   DEFAULT_VERTEX_CAPACITY,
   DEFAULT_TRIANGLE_CAPACITY,
   DEFAULT_MATERIAL_CAPACITY,
   DEFAULT_MESH_CAPACITY,
-} from './exports.js';
-import {
-  Buffer,
-  BufferType,
-  BindGroup,
-  ComputePipeline,
-  ComputeFor,
-  Sampler,
-} from '../webgpu-utils/exports.js';
-import {SceneUtils, ViewportUtils} from './utils/exports.js';
+} from './constants.js';
+import {Capacities, RendererOptions} from './RendererOptions.js';
+import {Renderer} from './Renderer.js';
+import {RenderData} from './RenderData.js';
+import {Buffer, BufferType} from '../wgpual/Buffer.js';
+import {BindGroup} from '../wgpual/BindGroup.js';
+import {ComputePipeline, ComputeFor} from '../wgpual/ComputePipeline.js';
+import {Sampler} from '../wgpual/Sampler.js';
+import {SceneUtils} from './utils/SceneUtils.js';
+import {ViewportUtils} from './utils/ViewportUtils.js';
 
 // Shaders
-import {frameBufferViewWgsl} from './shaders/exports.js';
+import frameBufferViewWgsl from './shaders/frame_buffer_view.wgsl';
 import {TextureAtlas} from '../textures/TextureAtlas.js';
 
 class RayTracerBase implements Renderer {

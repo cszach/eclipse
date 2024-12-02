@@ -1,4 +1,4 @@
-import {Texture} from '../textures/exports.js';
+import {Texture} from '../textures/Texture.js';
 import {LAMBERT} from './constants.js';
 import {Material} from './Material.js';
 import {Vec3} from 'wgpu-matrix';

@@ -1,5 +1,6 @@
-import {Scene, Mesh} from '../primitives/exports.js';
-import {PerspectiveCamera} from '../cameras/exports.js';
+import {Scene} from '../primitives/Scene.js';
+import {Mesh} from '../primitives/Mesh.js';
+import {PerspectiveCamera} from '../cameras/PerspectiveCamera.js';
 import {UP} from '../constants.js';
 import {Light} from '../lights/Light.js';
 import {Renderer} from './Renderer.js';

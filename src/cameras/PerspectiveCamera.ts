@@ -6,72 +6,39 @@ class PerspectiveCamera extends Group implements Camera {
   projectionMatrix: Mat4;
   projectionMatrixInverse: Mat4;
 
-  private _verticalFovRadians: number;
-  private _aspectRatio: number;
-  private _near: number;
-  private _far: number;
+  vfovRadians: number;
+  aspectRatio: number;
+  near: number;
+  far: number;
 
   constructor(
-    verticalFovRadians?: number,
-    aspectRatio?: number,
-    near?: number,
-    far?: number
+    vfovRadians: number = Math.PI / 4,
+    aspectRatio: number = 1,
+    near: number = 0.1,
+    far: number = 1000
   ) {
     super();
 
-    this._verticalFovRadians = verticalFovRadians ?? Math.PI / 4;
-    this._aspectRatio = aspectRatio ?? 1;
-    this._near = near ?? 0.1;
-    this._far = far ?? 1000;
+    this.vfovRadians = vfovRadians;
+    this.aspectRatio = aspectRatio;
+    this.near = near;
+    this.far = far;
 
+    this.projectionMatrix = mat4.create();
+    this.projectionMatrixInverse = mat4.create();
     this.updateProjectMatrix();
   }
 
-  get verticalFovRadians() {
-    return this._verticalFovRadians;
-  }
-
-  set verticalFovRadians(newVerticalFovRadians: number) {
-    this._verticalFovRadians = newVerticalFovRadians;
-    this.updateProjectMatrix();
-  }
-
-  get aspectRatio() {
-    return this._aspectRatio;
-  }
-
-  set aspectRatio(newAspectRatio: number) {
-    this._aspectRatio = newAspectRatio;
-    this.updateProjectMatrix();
-  }
-
-  get near() {
-    return this._near;
-  }
-
-  set near(newNear: number) {
-    this._near = newNear;
-    this.updateProjectMatrix();
-  }
-
-  get far() {
-    return this._far;
-  }
-
-  set far(newFar: number) {
-    this._far = newFar;
-    this.updateProjectMatrix();
-  }
-
-  private updateProjectMatrix() {
-    this.projectionMatrix = mat4.perspective(
-      this._verticalFovRadians,
-      this._aspectRatio,
-      this._near,
-      this._far
+  updateProjectMatrix() {
+    mat4.perspective(
+      this.vfovRadians,
+      this.aspectRatio,
+      this.near,
+      this.far,
+      this.projectionMatrix
     );
 
-    this.projectionMatrixInverse = mat4.invert(this.projectionMatrix);
+    mat4.invert(this.projectionMatrix, this.projectionMatrixInverse);
   }
 }
 

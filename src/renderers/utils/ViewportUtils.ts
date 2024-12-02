@@ -1,5 +1,5 @@
 import {Vec3, vec3} from 'wgpu-matrix';
-import {PerspectiveCamera} from '../../cameras/exports.js';
+import {PerspectiveCamera} from '../../cameras/PerspectiveCamera.js';
 import {UP} from '../../constants.js';
 
 type ViewportData = {
@@ -17,7 +17,7 @@ class ViewportUtils {
     const focalLength = vec3.length(
       vec3.subtract(camera.localPosition, lookAt)
     );
-    const h = Math.tan(camera.verticalFovRadians / 2);
+    const h = Math.tan(camera.vfovRadians / 2);
     const viewportHeight = 2 * h * focalLength;
     const viewportWidth = viewportHeight * camera.aspectRatio;
 

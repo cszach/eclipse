@@ -1,4 +1,4 @@
-import {ComputeFor, ComputePipeline} from '../webgpu-utils/exports.js';
+import {ComputeFor, ComputePipeline} from '../wgpual/ComputePipeline.js';
 import {RayTracerBase} from './RayTracerBase.js';
 import {RendererOptions} from './RendererOptions.js';
 

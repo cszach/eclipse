@@ -11,8 +11,6 @@ import {
   Lambert,
   Sphere,
   PathTracer,
-  SceneUtils,
-  ViewportUtils,
 } from '../../src/index.js';
 import {quat, vec3} from 'wgpu-matrix';
 import Stats from 'stats.js';
@@ -93,14 +91,14 @@ function init(firstTexture: Texture, secondTexture: Texture) {
   const ambient = new AmbientLight([1, 1, 1]);
   const light = new PointLight();
   vec3.set(0, 0.5, 0, light.localPosition);
-  const lightMesh = new Mesh(new Plane(0.2, 0.2), new SolidColor());
+  const lightMesh = new Mesh(new Plane(0.2, 0.2), new SolidColor('#ffffff'));
   vec3.set(0, 0.5 - 0.001, 0, lightMesh.localPosition);
   quat.fromEuler(Math.PI / 2, 0, 0, 'xyz', lightMesh.localQuaternion);
 
   const scene = new Scene();
   const camera = new PerspectiveCamera(
     Math.PI / 4,
-    canvas.width / canvas.height
+    canvas!.width / canvas!.height
   );
   vec3.set(0, 0, 2, camera.localPosition);
 
